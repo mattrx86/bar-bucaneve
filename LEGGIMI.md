@@ -1,4 +1,4 @@
-# Bar Bucaneve - prototipo 0.3
+# Bar Bucaneve - prototipo 0.4
 
 Aprite `bar-bucaneve.html` con Chrome, Edge o Firefox (doppio clic). Non serve installare nulla, non serve internet.
 
@@ -38,3 +38,11 @@ Aprite `bar-bucaneve.html` con Chrome, Edge o Firefox (doppio clic). Non serve i
 - Oggetti scenici in strada e in cantina; alcuni si rompono (casse, botti) e possono lasciare bombe o un gelato che ridà vita; fusti rossi e bombole esplodono (fanno male anche a voi).
 - Carattere pixel in stile Metal Slug e HUD rifatto.
 - Le vostre voci: Giova, Ettore (presentazione, ricarica, rabbia, morte), il gelataio ogni tanto.
+
+## Novità della 0.4
+- Niente più nemici sui balconi (sembravano volare sopra le case).
+- Giunzioni della strada rifatte: niente più "palazzi fantasma".
+- Checkpoint: con il CONTINUE si riparte da metà strada (dopo il cartello CHECKPOINT!) o direttamente da Giova, non dall'inizio.
+- I menu si confermano solo con Invio o Spazio (sparando o saltando non si saltano più per sbaglio).
+- I pallettoni di Ettore sono un po' più lenti: da lontano si schivano meglio.
+- Fascia scura dietro i numeri in alto, più leggibili.
