@@ -63,7 +63,10 @@ def b64jpg(im, q=88):
     b = io.BytesIO(); im.convert('RGB').save(b, 'JPEG', quality=q, subsampling=0)
     return 'data:image/jpeg;base64,' + base64.b64encode(b.getvalue()).decode()
 
-DMAX = 3  # densita' massima delle texture (il gioco e' 384x216, disegnato a 3x = 1152x648)
+# DENSITA': pixel di texture per pixel di gioco. Il gioco ragiona in 384x216 e disegna a 3x (1152x648):
+# con 1.5 ogni pixel dei disegni diventa un quadrato di 2x2 pixel dello schermo, uguale per TUTTO
+# (personaggi, oggetti, casse, effetti, fondali). Valori possibili: 1 (pixel enormi), 1.5, 3 (pixel fini).
+DMAX = 1.5
 SHEETS = {}
 report = []
 for key, path, mode, ROWS, refpose, target, dil in ENT:
@@ -78,7 +81,7 @@ for key, path, mode, ROWS, refpose, target, dil in ENT:
         for n, c in zip(names, r): raw[n] = c['img']
     ref = raw[refpose]; rh = (ref[..., 3] > 0).any(1).sum()
     # densita': la texture ha d pixel per ogni pixel del gioco (max DMAX, mai ingrandire l'originale)
-    d = round(min(DMAX, rh / target), 2)
+    d = DMAX  # stessa grandezza di pixel per tutti
     s = target * d / rh
     fr = {}
     for n, im in raw.items():
@@ -123,24 +126,55 @@ for key, path, mode, ROWS, refpose, target, dil in ENT:
 # --- ritratto grande di Ettore (scheda di presentazione) ---
 _r = J('livello3-cantina', 'boss-ettore', 'ritratto.png'); a = peel(load_mask(_r, modo(_r)))
 R = rows(components(a, dil=6)); por = R[0][1]['img']
-hh = (por[..., 3] > 0).any(1).sum(); dr = round(min(DMAX, hh / 150), 2); sm = ink(to_small(por, 150 * dr / hh))
+hh = (por[..., 3] > 0).any(1).sum(); dr = DMAX; sm = ink(to_small(por, 150 * dr / hh))
 SHEETS['ettore_ritratto'] = dict(data=b64png(Image.fromarray(sm)), cw=sm.shape[1], ch=sm.shape[0], foot=sm.shape[0], d=dr, frames=['x'], muzzle={})
 
 # --- fondali ---
+# Ogni fondale viene allineato in modo che i piedi dei personaggi stiano SULLA STRADA (o sul
+# pavimento), non a meta' altezza. La fascia di strada/pavimento viene anche prolungata verso il
+# basso ripetendola, cosi' sotto i piedi c'e' sempre terreno.
 BG = {}
-def scaled(path, s):
-    im = Image.open(path).convert('RGB')
-    return im.resize((round(im.width * s), round(im.height * s)), Image.LANCZOS)
 GROUND = 180; VH = 216
-S_STREET = 0.415
-def crop_ground(im, feet_frac, s, H0):
-    fy = feet_frac * H0 * s; top = int(round(fy - GROUND))
-    return im.crop((0, top, im.width, top + VH))
-pieces = [crop_ground(scaled(f, S_STREET), 0.905, S_STREET, Image.open(f).height) for f in cartella('livello1-strada', 'fondali')]
-_b = J('livello2-bucaneve', 'fondale', 'esterno.png'); bar = crop_ground(scaled(_b, S_STREET), 0.905, S_STREET, Image.open(_b).height)
-pieces.append(bar)
-# Giunzioni: invece di dissolvere (che creava "palazzi fantasma") cerchiamo la coppia di colonne
-# piu' simili ai bordi dei due pezzi e tagliamo li', con una sfumatura di pochi pixel.
+S_STREET = 0.42   # scala dei fondali della strada: le porte sono alte circa quanto un personaggio
+S_CELL = 0.32
+
+def fascia_strada(a):
+    """Inizio della strada: la riga piu' bassa (sotto l'80%) oltre la quale tutte le righe sono uniformi."""
+    L = a.astype(float).mean(2); H = L.shape[0]
+    std = L.std(1)
+    y = H - 1
+    while y > H * 0.8 and std[y] < 14: y -= 1
+    return y + 1, H
+
+def prepara(path, tipo):
+    im = np.array(Image.open(path).convert('RGB')); H = im.shape[0]
+    if tipo == 'strada':
+        # piedi a distanza fissa dal bordo del marciapiede: cosi' il marciapiede e' alla stessa
+        # altezza in tutti i pezzi e alle giunzioni non ci sono scalini
+        a, b = fascia_strada(im); piede = a + 0.045 * H
+    else:  # cantina (fondale del 15/11): pavimento principale tra il 70% e l'82% dell'altezza,
+        # sotto c'e' il gradino con le strisce gialle e nere che resta visibile in basso
+        a, b = int(H * 0.700), int(H * 0.820); piede = int(H * 0.775)
+    band = im[a:b] if tipo == 'strada' else im[-60:]
+    pezzi = [im]; k = 0
+    while sum(x.shape[0] for x in pezzi) < H + 400:
+        pezzi.append(band if k % 2 else band[::-1]); k += 1  # ripetizione a specchio: niente righe visibili
+    return np.concatenate(pezzi, 0), piede
+
+def pezzo(path, tipo, S, dens):
+    im, piede = prepara(path, tipo)
+    pil = Image.fromarray(im)
+    pil = pil.resize((round(pil.width * S * dens), round(pil.height * S * dens)), Image.LANCZOS)
+    top = int(round((piede * S - GROUND) * dens))
+    if top < 0:  # immagine troppo bassa: si aggiunge cielo ripetendo la prima riga
+        pil2 = Image.new('RGB', (pil.width, pil.height - top)); pil2.paste(pil.crop((0, 0, pil.width, 1)).resize((pil.width, -top)), (0, 0)); pil2.paste(pil, (0, -top)); pil = pil2; top = 0
+    return pil.crop((0, top, pil.width, top + int(round(VH * dens))))
+
+files_strada = cartella('livello1-strada', 'fondali')
+_b = J('livello2-bucaneve', 'fondale', 'esterno.png')
+pieces = [pezzo(f, 'strada', S_STREET, 1) for f in files_strada] + [pezzo(_b, 'strada', S_STREET, 1)]
+bar = pieces[-1]
+# Giunzioni: cerchiamo la coppia di colonne piu' simili ai bordi dei due pezzi e tagliamo li'.
 SEARCH, BL = 150, 6
 strip = np.array(pieces[0]).astype(float)
 seams = []; bar_x = 0; cuts = []
@@ -155,39 +189,28 @@ for n, p in enumerate(pieces[1:], 1):
             if best is None or d < best[0]: best = (d, ia, ib)
     _, ia, ib = best
     t = np.linspace(0, 1, BL)[None, :, None]
-    blend = strip[:, ia - BL:ia] * (1 - t) + q[:, ib - BL:ib] * t
-    strip = np.concatenate([strip[:, :ia - BL], blend, q[:, ib:]], 1)
-    seams.append(ia - BL // 2)
+    strip = np.concatenate([strip[:, :ia - BL], strip[:, ia - BL:ia] * (1 - t) + q[:, ib - BL:ib] * t, q[:, ib:]], 1)
+    seams.append(ia - BL // 2); cuts.append((ia, ib))
     if n == len(pieces) - 1: bar_x = ia - ib  # inizio (virtuale) del pezzo del bar
-    cuts.append((ia, ib))
 street = Image.fromarray(strip.clip(0, 255).astype(np.uint8))
-# stessa strada ad alta densita' (DB pixel per pixel di gioco), con gli stessi tagli
-DB = 2.5
-def hi(path):
-    im = Image.open(path).convert('RGB'); H0 = im.height
-    im = im.resize((round(im.width * S_STREET * DB), round(im.height * S_STREET * DB)), Image.LANCZOS)
-    top = int(round((0.905 * H0 * S_STREET - GROUND) * DB))
-    return np.array(im.crop((0, top, im.width, top + int(VH * DB)))).astype(float)
-hp = [hi(f) for f in cartella('livello1-strada', 'fondali')] + [hi(_b)]
-hs = hp[0]; bl = int(BL * DB)
+# stessa strada alla densita' finale, con gli stessi tagli
+DB = DMAX
+hp = [np.array(pezzo(f, 'strada', S_STREET, DB)).astype(float) for f in files_strada + [_b]]
+hs = hp[0]; bl = max(2, int(BL * DB))
 for q, (ia, ib) in zip(hp[1:], cuts):
     a_, b_ = int(round(ia * DB)), int(round(ib * DB))
     t = np.linspace(0, 1, bl)[None, :, None]
     hs = np.concatenate([hs[:, :a_ - bl], hs[:, a_ - bl:a_] * (1 - t) + q[:, b_ - bl:b_] * t, q[:, b_:]], 1)
 hstreet = Image.fromarray(hs.clip(0, 255).astype(np.uint8))
-# a pezzi da 512 pixel di gioco (texture <= 4096)
 parts = []; P = int(512 * DB)
 for x in range(0, hstreet.width, P):
     parts.append(b64jpg(hstreet.crop((x, 0, min(hstreet.width, x + P), hstreet.height))))
 BG['street'] = dict(parts=parts, w=street.width, barX=bar_x, barW=bar.width, seams=seams, d=DB)
 street.save(f'{PREV}/fondale_strada.png')
-S_CELL = 0.32
-_c = J('livello3-cantina', 'fondale', 'cantina.png'); cel = crop_ground(scaled(_c, S_CELL), 0.80, S_CELL, Image.open(_c).height)
-DC = 3
-_ci = Image.open(_c).convert('RGB'); _H0 = _ci.height
-_ci = _ci.resize((round(_ci.width * S_CELL * DC), round(_H0 * S_CELL * DC)), Image.LANCZOS)
-_top = int(round((0.80 * _H0 * S_CELL - GROUND) * DC))
-celh = _ci.crop((0, _top, _ci.width, _top + VH * DC))
+_c = J('livello3-cantina', 'fondale', 'cantina.png')
+cel = pezzo(_c, 'cantina', S_CELL, 1)
+DC = DMAX
+celh = pezzo(_c, 'cantina', S_CELL, DC)
 BG['cellar'] = dict(parts=[b64jpg(celh)], w=cel.width, d=DC)
 cel.save(f'{PREV}/fondale_cantina.png')
 report.append(f'strada: {street.width} px (bar da x={bar_x}, giunzioni {seams}), cantina: {cel.width} px')

@@ -1,4 +1,4 @@
-# Bar Bucaneve - prototipo 0.6
+# Bar Bucaneve - prototipo 0.7
 
 Aprite `bar-bucaneve.html` con Chrome, Edge o Firefox (doppio clic). Non serve installare nulla, non serve internet.
 
@@ -56,3 +56,10 @@ Aprite `bar-bucaneve.html` con Chrome, Edge o Firefox (doppio clic). Non serve i
 - La vostra grafica per casse armi (si aprono quando le prendete), proiettili, razzi, granate, lampi di sparo, esplosioni con cratere, scintille, polvere e icone delle armi nell'HUD.
 - Musica: "strada" in strada e da Giova, "battaglia-ettore" in cantina, resa in stile 8 bit; si abbassa quando parlano i personaggi.
 - Niente più aloni chiari attorno ai personaggi; gli occhiali di Giova non sono più trasparenti.
+
+## Novità della 0.7
+- Nuovi fondali della strada e nuova cantina. I personaggi camminano sulla strada (non più sul marciapiede) e in cantina sul pavimento; i marciapiedi sono alla stessa altezza in tutti i pezzi.
+- Tutte le immagini hanno la stessa grandezza di pixel (2x2 pixel dello schermo per ogni pixel dei disegni): personaggi, casse, effetti e fondali sono coerenti.
+- Musica come suoneria polifonica: le note dei vostri brani suonate da onde quadre a 3 voci + basso + tamburi, senza voce.
+- Più voci: gelatai e ubriachi parlano (voci ricavate cambiando il timbro delle registrazioni), la gelataia a volte lascia le bombe.
+- Proiettili del mitra, fiamme, vetri e schegge ora usano la vostra grafica.

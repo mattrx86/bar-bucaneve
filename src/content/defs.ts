@@ -98,48 +98,48 @@ const k = (lato: 'dx' | 'sx', ritardo: number) => ({ tipo: 'kamikaze' as EnemyTy
 // sempre nello stesso punto e il nemico sembrava volare sopra le case.
 
 export const WAVES: Wave[] = [
-  { x: 120, nemici: [g('dx', 0), g('dx', 1.2)] },
-  { x: 340, nemici: [u('dx', 0), g('dx', 0.8)] },
-  { x: 560, nemici: [g('dx', 0), g('sx', 0.6), l('dx', 1.4)] },
-  { x: 780, nemici: [u('dx', 0), l('dx', 0.8), g('dx', 2.2)] },
-  { x: 1000, nemici: [g('dx', 0), k('dx', 0.5), g('sx', 1.2), l('dx', 2.0)] },
+  { x: 134, nemici: [g('dx', 0), g('dx', 1.2)] },
+  { x: 380, nemici: [u('dx', 0), g('dx', 0.8)] },
+  { x: 626, nemici: [g('dx', 0), g('sx', 0.6), l('dx', 1.4)] },
+  { x: 871, nemici: [u('dx', 0), l('dx', 0.8), g('dx', 2.2)] },
+  { x: 1117, nemici: [g('dx', 0), k('dx', 0.5), g('sx', 1.2), l('dx', 2.0)] },
   // --- checkpoint a metà strada (vedi CHECKPOINT_ONDA)
-  { x: 1240, nemici: [u('dx', 0), l('dx', 0.6), g('dx', 1.6), u('sx', 2.4)] },
-  { x: 1480, nemici: [g('dx', 0), l('dx', 0.4), k('dx', 1.2), u('dx', 1.8)] },
-  { x: 1720, nemici: [u('dx', 0), g('dx', 0.5), g('sx', 1.4), k('dx', 2.0), l('dx', 2.6)] },
-  { x: 1940, nemici: [g('dx', 0), u('dx', 0.6), k('dx', 1.2), g('sx', 1.8), l('dx', 2.2)] },
+  { x: 1386, nemici: [u('dx', 0), l('dx', 0.6), g('dx', 1.6), u('sx', 2.4)] },
+  { x: 1654, nemici: [g('dx', 0), l('dx', 0.4), k('dx', 1.2), u('dx', 1.8)] },
+  { x: 1922, nemici: [u('dx', 0), g('dx', 0.5), g('sx', 1.4), k('dx', 2.0), l('dx', 2.6)] },
+  { x: 2168, nemici: [g('dx', 0), u('dx', 0.6), k('dx', 1.2), g('sx', 1.8), l('dx', 2.2)] },
+  { x: 2407, nemici: [u('dx', 0), g('dx', 0.6), g('dx', 1.2), k('sx', 1.8)] },
 ];
 /** Indice dell'ondata da cui si riparte con il CONTINUE se si è superata metà strada. */
 export const CHECKPOINT_ONDA = 5;
 
 export const PICKUPS: { x: number; arma: string }[] = [
-  { x: 450, arma: 'mitragliatrice' },
-  { x: 900, arma: 'fucile' },
-  { x: 1360, arma: 'lanciarazzi' },
-  { x: 1840, arma: 'mitragliatrice' },
-  { x: 2080, arma: 'fiamma' },
+  { x: 503, arma: 'mitragliatrice' },
+  { x: 1006, arma: 'fucile' },
+  { x: 1520, arma: 'lanciarazzi' },
+  { x: 2056, arma: 'mitragliatrice' },
+  { x: 2325, arma: 'fiamma' },
 ];
 
 // ---------------------------------------------------------------------------
 // OGGETTI SCENICI (foglio "oggetti"). `rompe`: si distrugge sparando.
 //   legno/vetro = va in pezzi e a volte lascia un premio · esplode = esplosione (fa male anche a voi!)
-// Le giunzioni tra i pezzi di fondale sono a x ~ 680, 1346, 2012, 2678: lì mettiamo oggetti grossi.
+// Strada lunga ~3100 px (4 facciate + il bar a x~2390). Posizioni riscalate dopo i fondali del 15/11.
 // ---------------------------------------------------------------------------
 export type Rottura = 'legno' | 'vetro' | 'esplode';
 export interface PropPos { nome: string; x: number; rompe?: Rottura; vita?: number; dy?: number }
 export const PROPS_STRADA: PropPos[] = [
-  { nome: 'cono', x: 110 }, { nome: 'transenna', x: 260 }, { nome: 'cassa_vino', x: 330, rompe: 'vetro', vita: 20 },
-  { nome: 'sedia', x: 625 }, { nome: 'ombrellone', x: 652 }, { nome: 'tavolo', x: 678 },
-  { nome: 'fusto_rosso', x: 760, rompe: 'esplode', vita: 30 }, { nome: 'pianta', x: 930 }, { nome: 'casse_rosse', x: 1060, rompe: 'vetro', vita: 20 },
-  { nome: 'carretto', x: 1164 }, { nome: 'botte', x: 1290, rompe: 'legno', vita: 35 }, { nome: 'gomme', x: 1420 },
-  { nome: 'bombole', x: 1530, rompe: 'esplode', vita: 30 }, { nome: 'cassonetto', x: 1615 }, { nome: 'cestino', x: 1650 },
-  { nome: 'scatoloni', x: 1780, rompe: 'legno', vita: 15 }, { nome: 'fusto_rosso', x: 1900, rompe: 'esplode', vita: 30 },
-  { nome: 'sacchi_rifiuti', x: 2010 }, { nome: 'pianta', x: 2121 }, { nome: 'ombrellone', x: 2250 }, { nome: 'tavolo', x: 2278 },
-  { nome: 'vetrina_gelati', x: 2690 },
+  { nome: 'cono', x: 123 }, { nome: 'transenna', x: 290 }, { nome: 'cassa_vino', x: 368, rompe: 'vetro', vita: 20 },
+  { nome: 'sedia', x: 699 }, { nome: 'ombrellone', x: 729 }, { nome: 'tavolo', x: 758 },
+  { nome: 'fusto_rosso', x: 849, rompe: 'esplode', vita: 30 }, { nome: 'pianta', x: 1039 }, { nome: 'casse_rosse', x: 1184, rompe: 'vetro', vita: 20 },
+  { nome: 'carretto', x: 1300 }, { nome: 'botte', x: 1442, rompe: 'legno', vita: 35 }, { nome: 'gomme', x: 1587 },
+  { nome: 'bombole', x: 1710, rompe: 'esplode', vita: 30 }, { nome: 'cassonetto', x: 1805 }, { nome: 'cestino', x: 1844 },
+  { nome: 'scatoloni', x: 1989, rompe: 'legno', vita: 15 }, { nome: 'fusto_rosso', x: 2123, rompe: 'esplode', vita: 30 },
+  { nome: 'sacchi_rifiuti', x: 2246 }, { nome: 'pianta', x: 2370 }, { nome: 'ombrellone', x: 2515 }, { nome: 'tavolo', x: 2545 },
+  { nome: 'vetrina_gelati', x: 3006 },
 ];
 export const PROPS_CANTINA: PropPos[] = [
-  { nome: 'botti_pila', x: 34 }, { nome: 'casse_rosse', x: 120, rompe: 'vetro', vita: 20 },
-  { nome: 'fusto', x: 300, rompe: 'esplode', vita: 30 }, { nome: 'fusti_pallet', x: 505 },
+  { nome: 'casse_rosse', x: 150, rompe: 'vetro', vita: 20 }, { nome: 'fusto', x: 330, rompe: 'esplode', vita: 30 },
 ];
 
 // ---------------------------------------------------------------------------

@@ -6,7 +6,7 @@
 import Phaser from 'phaser';
 import { GROUND_Y, WEAPONS, WeaponDef, HeroDef, EnemyDef, GIOVA, ETTORE, FRASI_ETTORE, FRASI_GIOVA, DiffDef, BALCONE_Y } from './content/defs';
 import { SHEETS } from './content/sprites';
-import { sfx, voce } from './core/audio';
+import { sfx, voce, parla } from './core/audio';
 import { fxTex, img, PROIETTILI_DISEGNATI } from './core/fx';
 
 export const GRAVITY = 980;
@@ -45,6 +45,7 @@ export interface World {
   uccisione(base: number, x: number, y: number, mischia: boolean): void;
   bossolo(x: number, y: number, dir: number): void;
   polvere?(x: number, grande?: boolean): void;
+  mortoNemico?(e: Enemy): void;
   giocatoreColpito(): void;
   diff: DiffDef;
 }
@@ -118,18 +119,20 @@ export class Player {
   prendiArma(id: string): void {
     const a = WEAPONS[id]; if (!a) return;
     this.arma = a; this.munizioni = a.munizioni;
+    if (a.id !== 'pistola') parla([this.def.id, 'eroe'], 'arma', 0.8);
   }
   danno(n: number): void {
     if (this.invuln > 0 || this.morto || this.vince) return;
     this.vita -= Math.round(n * this.w.diff.dannoSubito); this.invuln = 1.0; this.colpitoT = 0.3;
     sfx('colpito'); this.w.scuoti(120, 0.008); this.w.giocatoreColpito();
+    if (this.vita > 0) parla([this.def.id, 'eroe'], 'colpito', 0.5);
     if (this.vita <= 0) this.muori();
   }
   muori(): void {
     if (this.morto) return;
     this.morto = true; this.mortoT = 0; this.vita = 0;
     this.vx = this.guardaDx ? -60 : 60; this.vy = -170; this.onGround = false;
-    sfx('morte');
+    sfx('morte'); parla([this.def.id, 'eroe'], 'muore', 1, 0);
   }
   rinasci(x: number): void {
     this.morto = false; this.mortoT = 0; this.vita = this.vitaMax; this.invuln = 2.2;
@@ -256,6 +259,8 @@ export class Enemy {
   private oscilla = Math.random() * 6;
   private entrato = false;
   private polvereFatta = false;
+  /** chi parla: gelataia, gelataio, ubriaca, ubriaco (dal nome del foglio) */
+  readonly chi: string;
   private cadeVy = 0;
   private alto: boolean;
 
@@ -264,6 +269,7 @@ export class Enemy {
     this.alto = def.attacco === 'balcone';
     if (this.alto) this.y = BALCONE_Y;
     this.attT = Phaser.Math.FloatBetween(0.4, def.cadenza);
+    this.chi = sheet.replace('vil_', '').replace(/\d+$/, '');
     this.sprite = w.sc.add.sprite(x, this.y, `sh_${sheet}`, 0).setDepth(this.alto ? 20 : 45);
     if (this.alto) this.sprite.setScale(0.85);
   }
@@ -280,6 +286,8 @@ export class Enemy {
       this.morto = true; this.mortoT = 0; this.vx = dir * 50 || (this.guardaDx ? -50 : 50);
       if (this.alto) { this.cadeVy = -80; this.vx = 0; }
       sfx('nemicoMorto'); this.w.hitstop(0.06);
+      parla(this.chi, 'muore', 0.55, 1.5);
+      this.w.mortoNemico?.(this);
       this.w.uccisione(this.def.punti, this.x, this.y - 50, mischia);
       return true;
     }
@@ -363,12 +371,13 @@ export class Enemy {
       const inRange = !fuori && (A === 'mischia' ? dist < want + 10 : A === 'carica' ? dist < want + 20 : A === 'balcone' ? dist < 240 : dist < 210);
       if (inRange && this.entrato && this.attT <= 0 && !p.morto) {
         this.stato = 'attacco'; this.t = 0; this.colpo = false;
+        parla(this.chi, A === 'lancio' || A === 'palline' ? 'lancio' : 'attacco', 0.3, 2);
         if (A === 'carica') this.w.testo(this.x, this.y - 58, '!', '#ff5050');
       }
     }
     // una volta entrato nello schermo non ne esce più (altrimenti diventa irraggiungibile)
     const lim = this.w.limiti();
-    if (!this.entrato && this.x > lim.sx + 10 && this.x < lim.dx - 10) this.entrato = true;
+    if (!this.entrato && this.x > lim.sx + 10 && this.x < lim.dx - 10) { this.entrato = true; parla(this.chi, 'spawn', 0.35, 3); }
     if (this.entrato && !this.alto) this.x = Phaser.Math.Clamp(this.x, lim.sx + 10, lim.dx - 10); // il balcone resta dov'è
     if (!this.alto) {
       // separazione: i nemici non si sovrappongono troppo
@@ -494,7 +503,7 @@ export class Giova extends BossBase {
         this.guardaDx = dx > 0;
         this.disegna('attack_01');
         this.sprite.setTint(Math.floor(now * 14) % 2 ? 0xffd060 : 0xffffff);
-        if (this.t > 0.75) { this.st = 'carica'; this.t = 0; this.velCarica = (this.guardaDx ? 1 : -1) * 250; this.colpito = false; }
+        if (this.t > 0.75) { parla('giova', 'carica'); this.st = 'carica'; this.t = 0; this.velCarica = (this.guardaDx ? 1 : -1) * 250; this.colpito = false; }
         break;
       case 'carica':
         this.x += this.velCarica * dt;

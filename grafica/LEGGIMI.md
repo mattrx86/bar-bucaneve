@@ -55,7 +55,18 @@ Regole: personaggio rivolto **a destra**, pose **ben distanziate** (non devono t
 | `ettore_muore` | Ettore sconfitto |
 | `gelataio_pepite` | ogni tanto quando muore un nemico |
 
-Volete altre voci (es. un grido per ogni eroe)? Caricatele con un nome chiaro e ditemi quando usarle.
+### Voci che il gioco usa da solo, se le registrate
+
+Nome del file = `chi_quando`. Potete fare più versioni della stessa frase aggiungendo `_1`, `_2`… (es. `ubriaco_spawn_1.m4a`, `ubriaco_spawn_2.m4a`): il gioco ne sceglie una a caso.
+
+| chi | quando (`_spawn` entra in scena, `_attacco`, `_lancio`, `_muore`…) |
+| --- | --- |
+| `gelataia`, `gelataio` | `_spawn`, `_attacco`, `_lancio`, `_muore`; la gelataia anche `_bombe` ("prenditi queste bombe!", quando lascia le bombe) |
+| `ubriaca`, `ubriaco` | `_spawn`, `_lancio`, `_muore` |
+| `giova` | `_ciao`, `_carica`, `_muore` |
+| ogni eroe (`daniele`, `marco`, `paolo`…) oppure `eroe` per tutti | `_via` (inizio), `_colpito`, `_muore`, `_arma` (prende un'arma), `_combo` |
+
+Finché una voce manca, per gelatai, ubriachi e Giova ne ricavo una cambiando il timbro delle registrazioni che ci sono già (più acuta, più grave, "ubriaca"). Appena caricate quella vera, vince la vostra.
 
 ## Attenzione
 

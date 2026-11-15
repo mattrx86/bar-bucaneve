@@ -41,7 +41,7 @@ for k, riga in enumerate(NOMI):
     if len(r) != len(riga): raise SystemExit(f'riga {k}: trovati {len(r)} oggetti, attesi {len(riga)}')
     for (nome, h), c in zip(riga, r):
         img = c['img']; hh = (img[..., 3] > 0).any(1).sum()
-        d = round(min(3, hh / h), 2)  # densita' come per gli sprite
+        d = 1.5  # stessa densita' degli sprite (vedi DMAX in build_assets.py)
         sm = ink(to_small(img, h * d / hh))
         m = sm[..., 3] > 0; ys, xs = np.where(m)
         sm = sm[ys.min():ys.max() + 1, xs.min():xs.max() + 1]
@@ -62,6 +62,31 @@ for f in sorted(os.listdir(VOCI)):
                     'silenceremove=start_periods=1:start_threshold=-45dB:stop_periods=-1:stop_threshold=-45dB:stop_duration=0.4,loudnorm=I=-14:TP=-1.5',
                     '-ac', '1', '-ar', '32000', '-b:a', '72k', out], check=True)
     voci[nome.lower()] = 'data:audio/mpeg;base64,' + base64.b64encode(open(out, 'rb').read()).decode()
+# ---------------------------------------------------------------------------
+# Voci "derivate": finche' non registrate la voce vera di un personaggio, ne ricaviamo una
+# cambiando il timbro di una registrazione esistente (piu' acuta, piu' grave, "ubriaca"...).
+# nome nuovo: (sorgente, intonazione, velocita', effetto). Se caricate un file con il nome
+# nuovo, vince il vostro.
+# ---------------------------------------------------------------------------
+DERIVATE = {
+    'gelataia_muore': ('gelataio_pepite', 1.45, 1.0, ''),
+    'gelataio_muore': ('gelataio_pepite', 0.85, 1.0, ''),
+    'gelataio_attacco': ('gelataio_pepite', 1.1, 1.15, ''),
+    'gelataia_attacco': ('gelataio_pepite', 1.6, 1.15, ''),
+    'ubriaco_spawn': ('ettore_borbottio', 0.78, 0.85, 'vibrato=f=5:d=0.6'),
+    'ubriaca_spawn': ('ettore_borbottio', 1.35, 0.85, 'vibrato=f=5:d=0.6'),
+    'ubriaco_muore': ('giova_ciao', 0.7, 0.75, 'vibrato=f=4:d=0.7'),
+    'ubriaca_muore': ('giova_ciao', 1.3, 0.75, 'vibrato=f=4:d=0.7'),
+    'ubriaco_lancio': ('ettore_borbottio', 0.9, 1.2, 'vibrato=f=6:d=0.5'),
+    'giova_carica': ('giova_ciao', 0.85, 1.3, ''),
+    'giova_muore': ('giova_ciao', 0.7, 0.6, ''),
+}
+for nuovo, (src, pitch, vel, eff) in DERIVATE.items():
+    if nuovo in voci or src not in voci: continue
+    sorg = os.path.join(tmp, src + '.mp3'); out = os.path.join(tmp, nuovo + '.mp3')
+    filt = f'asetrate=32000*{pitch},aresample=32000,atempo={max(0.5, min(2.0, vel / pitch))}' + (',' + eff if eff else '')
+    subprocess.run(['ffmpeg', '-v', 'error', '-y', '-i', sorg, '-af', filt, '-ac', '1', '-ar', '32000', '-b:a', '64k', out], check=True)
+    voci[nuovo] = 'data:audio/mpeg;base64,' + base64.b64encode(open(out, 'rb').read()).decode()
 # ---------------------------------------------------------------------------
 # Foglio armi ed esplosioni (grafica/oggetti/armi.png): elementi per riga, da sinistra.
 # (nome, riga, x0, x1, larghezza in gioco, contorno scuro?)  x in pixel del foglio originale
@@ -92,7 +117,7 @@ if ARMI:
         img = A[y0:y1, x0:x1].copy()
         m = img[..., 3] > 0; ys, xs = np.where(m)
         img = img[ys.min():ys.max() + 1, xs.min():xs.max() + 1]
-        d = round(min(3, img.shape[1] / w), 2)
+        d = 1.5
         sm = to_small(img, w * d / img.shape[1])
         if conto: sm = ink(sm)
         fx[nome] = dict(data=b64png(Image.fromarray(sm)), w=round(sm.shape[1] / d, 1), h=round(sm.shape[0] / d, 1), d=d)
@@ -112,6 +137,13 @@ if MUSICA and os.path.isdir(MUSICA):
         nome, ext = os.path.splitext(f)
         if ext.lower() not in ('.mp3', '.wav', '.m4a', '.ogg'): continue
         out = os.path.join(tmp, 'mus_' + nome + '.mp3')
+        # suoneria polifonica: note ricavate dal brano e risuonate con onde quadre (tools/chiptune.py)
+        chip = os.path.join(tmp, 'chip_' + nome + '.wav')
+        subprocess.run([sys.executable, os.path.join(os.path.dirname(__file__), 'chiptune.py'), os.path.join(MUSICA, f), chip, '150'], check=True, stdout=subprocess.DEVNULL)
+        subprocess.run(['ffmpeg', '-v', 'error', '-y', '-i', chip, '-ac', '1', '-ar', '22050', '-b:a', '56k', out], check=True)
+        musica[nome.lower()] = 'data:audio/mpeg;base64,' + base64.b64encode(open(out, 'rb').read()).decode()
+        import shutil; shutil.copy(out, PREV.replace('oggetti.png', 'musica_' + nome + '.mp3'))
+        continue
         filtro = ('atrim=0:150,asetpts=N/SR/TB,highpass=f=120,lowpass=f=3600,'
                   'aresample=11025,acrusher=bits=7:mode=lin:mix=0.9:aa=0,alimiter=limit=0.9,aresample=22050,'
                   'afade=t=in:d=0.5,afade=t=out:st=147:d=3,dynaudnorm')

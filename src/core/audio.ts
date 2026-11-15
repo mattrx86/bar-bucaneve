@@ -166,3 +166,23 @@ function abbassaMusica(sec: number): void {
   musGain.gain.setTargetAtTime(VOL_MUSICA * 0.3, t, 0.08);
   musGain.gain.setTargetAtTime(VOL_MUSICA, t + sec, 0.3);
 }
+
+/**
+ * Fa parlare un personaggio: cerca tra le voci quelle che si chiamano `<chi>_<evento>` o
+ * `<chi>_<evento>_1`, `_2`... e ne sceglie una a caso. `chi` può essere un elenco (si usa il
+ * primo che ha la voce). `prob` = probabilità che parli, così non parlano sempre tutti.
+ */
+let ultimaFrase = 0;
+export function parla(chi: string | string[], evento: string, prob = 1, pausa = 4): boolean {
+  if (Math.random() > prob || !ctx) return false;
+  if (ctx.currentTime - ultimaFrase < 0.7) return false; // non accavallare le frasi
+  for (const c of Array.isArray(chi) ? chi : [chi]) {
+    const base = `${c}_${evento}`;
+    const scelte = Object.keys(VOCI).filter((k) => k === base || new RegExp(`^${base}_\\d+$`).test(k));
+    if (!scelte.length) continue;
+    ultimaFrase = ctx.currentTime;
+    voce(scelte[Math.floor(Math.random() * scelte.length)], pausa);
+    return true;
+  }
+  return false;
+}

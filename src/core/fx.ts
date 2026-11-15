@@ -66,4 +66,4 @@ export function img(sc: Phaser.Scene, x: number, y: number, nome: string, ripieg
   return sc.add.image(x, y, t.key).setScale(t.s * scala);
 }
 /** Mappa texture "del codice" -> disegno vostro, per i proiettili. */
-export const PROIETTILI_DISEGNATI: Record<string, string> = { bullet: 'proiettile', rocket: 'razzo', bomba: 'granata' };
+export const PROIETTILI_DISEGNATI: Record<string, string> = { bullet: 'proiettile', rocket: 'razzo', bomba: 'granata', flame: 'lampo_2' };

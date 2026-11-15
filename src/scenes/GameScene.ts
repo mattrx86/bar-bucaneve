@@ -16,7 +16,7 @@ import { Bullet, BulletOpts, Enemy, Player, World, BossBase, Giova, Ettore } fro
 
 interface Prop { s: Phaser.GameObjects.Image; def: PropPos; vita: number; rompe: Rottura }
 import { Controls } from '../core/controls';
-import { sfx, setMuted, isMuted, voce, musica } from '../core/audio';
+import { sfx, setMuted, isMuted, voce, musica, parla } from '../core/audio';
 import { loadSave, writeSave } from '../core/save';
 import { txt, zoomCamera, PixelText } from '../core/ui';
 import type { Risultato } from './ResultScene';
@@ -113,6 +113,7 @@ export class GameScene extends Phaser.Scene implements World {
 
     if (this.fase === 'strada') {
       musica('strada');
+      this.time.delayedCall(600, () => parla([this.hero.id, 'eroe'], 'via'));
       this.annuncio('MISSIONE 1', 'ARRIVA AL BAR BUCANEVE');
     } else {
       this.introEttore();
@@ -187,8 +188,16 @@ export class GameScene extends Phaser.Scene implements World {
     this.punti(n, x, y);
     if (molt > 1) { this.hud.combo.setText(`COMBO X${molt}`).setVisible(true).setAlpha(1); }
     if (Phaser.Math.Between(0, 99) < 6) voce('gelataio_pepite', 8, 0.9);
+    if (molt >= 3) parla([this.hero.id, 'eroe'], 'combo', 0.5);
   }
   giocatoreColpito(): void { this.colpitoNelBoss = true; }
+  /** La gelataia, quando cade, a volte lascia le bombe ("prenditi queste bombe!"). */
+  mortoNemico(e: Enemy): void {
+    if (e.chi === 'gelataia' && Math.random() < 0.45) {
+      this.premi.push({ s: img(this, e.x, GROUND_Y, 'cassa_bombe', 'premio_bombe', 0.75).setOrigin(0.5, 1).setDepth(41), tipo: 'bombe' });
+      this.time.delayedCall(250, () => parla('gelataia', 'bombe', 1, 0));
+    }
+  }
   bossVicino(x: number, y: number): boolean {
     const b = this.boss;
     return !!b && !b.morto && b.attivo && Math.abs(b.x - x) < 34 && Math.abs(b.y - y) < 30;
@@ -276,7 +285,7 @@ export class GameScene extends Phaser.Scene implements World {
       this.time.delayedCall(700, () => {
         this.boss = new Giova(this, arenaX + VIEW_W + 40);
         this.colpitoNelBoss = false;
-        this.boss.onMorte = () => this.bonusPerfetto();
+        this.boss.onMorte = () => { parla('giova', 'muore', 1, 0); this.bonusPerfetto(); };
         this.mostraBossHud();
         this.annuncio('GIOVA', 'IL BUTTAFUORI DEL BUCANEVE');
       });
@@ -330,7 +339,7 @@ export class GameScene extends Phaser.Scene implements World {
       for (const e of this.nemici) {
         if (e.morto || b.colpiti.has(e) || !e.box().contains(x, y)) continue;
         if (b.o.esplosivo) { b.morto = true; break; }
-        e.danno(b.o.danno, Math.sign(b.vx)); b.colpiti.add(e);
+        e.danno(b.o.danno, Math.sign(b.vx)); b.colpiti.add(e); this.scintilla(x, y);
         if (!b.o.perforante) { b.morto = true; break; }
       }
       if (!b.morto && this.boss && !this.boss.morto && this.boss.attivo && !b.colpiti.has(this.boss) && this.boss.box().contains(x, y)) {
@@ -369,7 +378,8 @@ export class GameScene extends Phaser.Scene implements World {
     } else {
       sfx('nemicoMorto');
       const tex = pr.rompe === 'vetro' ? 'px' : 'scheggia';
-      for (let i = 0; i < 9; i++) {
+      if (this.detriti(x, y, 0.8)) { this.polvere(x); }
+      else for (let i = 0; i < 9; i++) {
         const sp = this.add.image(x, y, tex).setDepth(62).setScale(pr.rompe === 'vetro' ? 2 : 1);
         if (pr.rompe === 'vetro') sp.setTint(i % 2 ? 0x4f8a3a : 0xc8e0a0);
         this.tweens.add({ targets: sp, x: x + Phaser.Math.Between(-24, 24), y: y - Phaser.Math.Between(0, 20), alpha: 0, angle: 180, duration: 500, onComplete: () => sp.destroy() });
@@ -400,8 +410,16 @@ export class GameScene extends Phaser.Scene implements World {
     const s = this.add.image(x, y, 'flame').setTint(0xfff0a0).setScale(0.5).setDepth(65);
     this.tweens.add({ targets: s, alpha: 0, scale: 0.1, duration: 120, onComplete: () => s.destroy() });
   }
+  /** Pezzi che volano via: usa i detriti disegnati, altrimenti quadratini del codice. */
+  private detriti(x: number, y: number, scala = 0.6): boolean {
+    if (!FX.detriti) return false;
+    const s = img(this, x, y, 'detriti', 'px', scala).setDepth(62).setFlipX(Math.random() < 0.5);
+    this.tweens.add({ targets: s, y: y - 8, alpha: 0, duration: 450, onComplete: () => s.destroy() });
+    return true;
+  }
   private cocci(x: number, y: number): void {
     sfx('nemicoColpito');
+    if (this.detriti(x, Math.min(y, GROUND_Y - 4), 0.5)) return;
     for (let i = 0; i < 5; i++) {
       const s = this.add.image(x, Math.min(y, GROUND_Y - 2), 'px').setTint(i % 2 ? 0x4f8a3a : 0xc8e0a0).setScale(2).setDepth(62);
       this.tweens.add({ targets: s, x: x + Phaser.Math.Between(-14, 14), y: s.y - Phaser.Math.Between(4, 14), alpha: 0, duration: 380, onComplete: () => s.destroy() });
