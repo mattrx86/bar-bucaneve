@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { SHEETS, BG } from '../content/sprites';
 import { PROPS } from '../content/extra';
-import { bakeFx } from '../core/fx';
+import { bakeFx, caricaFx } from '../core/fx';
 import { bakeFont } from '../core/font';
 import { loadSave } from '../core/save';
 import { setMuted } from '../core/audio';
@@ -22,6 +22,7 @@ export class BootScene extends Phaser.Scene {
     BG.street.parts.forEach((d, i) => this.load.image(`bg_street_${i}`, d));
     BG.cellar.parts.forEach((d, i) => this.load.image(`bg_cellar_${i}`, d));
     for (const [k, p] of Object.entries(PROPS)) this.load.image(`prop_${k}`, p.data);
+    caricaFx(this);
   }
   create(): void {
     bakeFx(this);

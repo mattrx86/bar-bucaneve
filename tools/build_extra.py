@@ -22,6 +22,8 @@ def b64png(im):
     return 'data:image/png;base64,' + base64.b64encode(b.getvalue()).decode()
 
 SHEET, VOCI, OUT, PREV = sys.argv[1:5]
+ARMI = sys.argv[5] if len(sys.argv) > 5 else None
+MUSICA = sys.argv[6] if len(sys.argv) > 6 else None
 # nome e altezza in gioco (px; l'eroe e' alto 54) riga per riga, da sinistra a destra
 NOMI = [
     [('botte_grande', 40), ('botti_pila', 36), ('botte', 26), ('cassa_vino', 20), ('casse_pila', 36), ('sacchi', 18), ('bidone_latte', 28)],
@@ -60,8 +62,68 @@ for f in sorted(os.listdir(VOCI)):
                     'silenceremove=start_periods=1:start_threshold=-45dB:stop_periods=-1:stop_threshold=-45dB:stop_duration=0.4,loudnorm=I=-14:TP=-1.5',
                     '-ac', '1', '-ar', '32000', '-b:a', '72k', out], check=True)
     voci[nome.lower()] = 'data:audio/mpeg;base64,' + base64.b64encode(open(out, 'rb').read()).decode()
+# ---------------------------------------------------------------------------
+# Foglio armi ed esplosioni (grafica/oggetti/armi.png): elementi per riga, da sinistra.
+# (nome, riga, x0, x1, larghezza in gioco, contorno scuro?)  x in pixel del foglio originale
+# Righe: 0 casse · 1 cassa che si apre · 2 icone · 3 lampi e proiettili · 4 esplosione · 5 polvere
+# ---------------------------------------------------------------------------
+RIGHE_ARMI = [(16, 177), (196, 380), (419, 507), (553, 613), (625, 814), (852, 975)]
+ELEMENTI = [
+    ('cassa_fucile', 0, 46, 279, 22, 1), ('cassa_fiamma', 0, 350, 587, 22, 1), ('cassa_bombe', 0, 655, 888, 22, 1),
+    ('cassa_lanciarazzi', 0, 951, 1187, 22, 1), ('cassa_mitragliatrice', 0, 1258, 1492, 22, 1),
+    ('apre_1', 1, 56, 243, 22, 1), ('apre_2', 1, 288, 512, 26, 1), ('apre_3', 1, 544, 731, 22, 1),
+    ('apre_4', 1, 787, 981, 23, 1), ('apre_5', 1, 1044, 1227, 22, 1), ('apre_6', 1, 1297, 1487, 22, 1),
+    ('icona_mitragliatrice', 2, 37, 128, 12, 0), ('icona_pistola', 2, 160, 259, 13, 0), ('icona_fiamma', 2, 289, 401, 15, 0),
+    ('icona_fucile', 2, 432, 557, 17, 0), ('icona_bomba', 2, 587, 683, 13, 0), ('icona_lanciarazzi', 2, 713, 839, 17, 0),
+    ('icona_munizioni', 2, 871, 972, 14, 0), ('icona_cura', 2, 1003, 1099, 13, 0),
+    ('granata', 2, 1152, 1230, 8, 1), ('razzo', 2, 1266, 1379, 13, 0), ('proiettile', 2, 1435, 1500, 7, 0),
+    ('lampo_1', 3, 40, 84, 8, 0), ('lampo_2', 3, 120, 190, 12, 0), ('lampo_3', 3, 232, 351, 18, 0),
+    ('scia_1', 3, 404, 479, 10, 0), ('razzo_volo', 3, 941, 1127, 22, 0),
+    ('boom_0', 4, 38, 115, 12, 0), ('boom_1', 4, 147, 256, 18, 0), ('boom_2', 4, 282, 410, 22, 0), ('boom_3', 4, 435, 589, 27, 0),
+    ('boom_4', 4, 602, 794, 34, 0), ('boom_5', 4, 800, 992, 34, 0), ('boom_6', 4, 1011, 1178, 30, 0), ('boom_7', 4, 1197, 1500, 30, 0),
+    ('polvere_1', 5, 40, 146, 14, 0), ('polvere_2', 5, 182, 350, 22, 0), ('polvere_3', 5, 379, 576, 26, 0),
+    ('scintille_1', 5, 607, 771, 16, 0), ('scintille_2', 5, 822, 970, 16, 0), ('detriti', 5, 1008, 1287, 26, 0), ('cratere', 5, 1311, 1502, 26, 0),
+]
+fx = {}
+if ARMI:
+    A = load_mask(ARMI, 'alpha')
+    for nome, r, x0, x1, w, conto in ELEMENTI:
+        y0, y1 = RIGHE_ARMI[r]
+        img = A[y0:y1, x0:x1].copy()
+        m = img[..., 3] > 0; ys, xs = np.where(m)
+        img = img[ys.min():ys.max() + 1, xs.min():xs.max() + 1]
+        d = round(min(3, img.shape[1] / w), 2)
+        sm = to_small(img, w * d / img.shape[1])
+        if conto: sm = ink(sm)
+        fx[nome] = dict(data=b64png(Image.fromarray(sm)), w=round(sm.shape[1] / d, 1), h=round(sm.shape[0] / d, 1), d=d)
+    ims = [Image.open(io.BytesIO(base64.b64decode(v['data'].split(',')[1]))).convert('RGBA') for v in fx.values()]
+    W = sum(i.width + 6 for i in ims); H = max(i.height for i in ims)
+    pv = Image.new('RGBA', (W, H), (70, 78, 92, 255)); x = 0
+    for im in ims: pv.alpha_composite(im, (x, H - im.height)); x += im.width + 6
+    pv.save(PREV.replace('.png', '_armi.png'))
+
+# ---------------------------------------------------------------------------
+# Musica: resa "8 bit povera" (campionamento basso, pochi bit, banda stretta), mono,
+# primi 150 s con dissolvenze per il ciclo continuo.
+# ---------------------------------------------------------------------------
+musica = {}
+if MUSICA and os.path.isdir(MUSICA):
+    for f in sorted(os.listdir(MUSICA)):
+        nome, ext = os.path.splitext(f)
+        if ext.lower() not in ('.mp3', '.wav', '.m4a', '.ogg'): continue
+        out = os.path.join(tmp, 'mus_' + nome + '.mp3')
+        filtro = ('atrim=0:150,asetpts=N/SR/TB,highpass=f=120,lowpass=f=3600,'
+                  'aresample=11025,acrusher=bits=7:mode=lin:mix=0.9:aa=0,alimiter=limit=0.9,aresample=22050,'
+                  'afade=t=in:d=0.5,afade=t=out:st=147:d=3,dynaudnorm')
+        subprocess.run(['ffmpeg', '-v', 'error', '-y', '-i', os.path.join(MUSICA, f), '-af', filtro,
+                        '-ac', '1', '-ar', '22050', '-b:a', '48k', out], check=True)
+        musica[nome.lower()] = 'data:audio/mpeg;base64,' + base64.b64encode(open(out, 'rb').read()).decode()
+        import shutil; shutil.copy(out, PREV.replace('oggetti.png', 'musica_' + nome + '.mp3'))
+
 with open(OUT, 'w') as f:
     f.write('// GENERATO da tools/build_extra.py - non modificare a mano.\n')
     f.write('export const PROPS: Record<string, { data: string; w: number; h: number; d: number }> = ' + json.dumps(props) + ';\n')
     f.write('export const VOCI: Record<string, string> = ' + json.dumps(voci) + ';\n')
-print(len(props), 'oggetti,', len(voci), 'voci,', os.path.getsize(OUT) // 1024, 'KB')
+    f.write('export const FX: Record<string, { data: string; w: number; h: number; d: number }> = ' + json.dumps(fx) + ';\n')
+    f.write('export const MUSICA: Record<string, string> = ' + json.dumps(musica) + ';\n')
+print(len(props), 'oggetti,', len(voci), 'voci,', len(fx), 'effetti,', len(musica), 'brani,', os.path.getsize(OUT) // 1024, 'KB')

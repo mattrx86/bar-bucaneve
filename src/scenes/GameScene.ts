@@ -9,13 +9,14 @@ import {
   VIEW_W, VIEW_H, GROUND_Y, WAVES, PICKUPS, ENEMIES, EnemyType, WEAPONS, getHero, HeroDef,
   DiffDef, getDiff, PROPS_STRADA, PROPS_CANTINA, PropPos, Rottura, CHECKPOINT_ONDA,
 } from '../content/defs';
-import { PROPS } from '../content/extra';
+import { PROPS, FX } from '../content/extra';
+import { img, fxTex } from '../core/fx';
 import { BG, SHEETS } from '../content/sprites';
 import { Bullet, BulletOpts, Enemy, Player, World, BossBase, Giova, Ettore } from '../entities';
 
 interface Prop { s: Phaser.GameObjects.Image; def: PropPos; vita: number; rompe: Rottura }
 import { Controls } from '../core/controls';
-import { sfx, setMuted, isMuted, voce } from '../core/audio';
+import { sfx, setMuted, isMuted, voce, musica } from '../core/audio';
 import { loadSave, writeSave } from '../core/save';
 import { txt, zoomCamera, PixelText } from '../core/ui';
 import type { Risultato } from './ResultScene';
@@ -46,7 +47,7 @@ export class GameScene extends Phaser.Scene implements World {
   private rinascitaT = -1;
   private hud!: {
     vita: Phaser.GameObjects.Image[]; vite: PixelText; punti: PixelText;
-    armi: PixelText; bombe: PixelText; armaNome: PixelText; tempo: PixelText; combo: PixelText;
+    armi: PixelText; bombe: PixelText; armaNome: PixelText; icona: Phaser.GameObjects.Image; tempo: PixelText; combo: PixelText;
     boss: Phaser.GameObjects.Container; bossSeg: Phaser.GameObjects.Image[]; pausa: PixelText; go: Phaser.GameObjects.Container;
   };
   diff!: DiffDef;
@@ -84,7 +85,7 @@ export class GameScene extends Phaser.Scene implements World {
       const cx = BG.street.barX + BG.street.barW / 2;
       this.add.rectangle(cx, 101, 104, 15, 0x2a1408).setStrokeStyle(1, 0xd8a040).setDepth(2);
       txt(this, cx, 101, 'BAR BUCANEVE', 9, '#ffe066', 2).setOrigin(0.5).setDepth(3);
-      for (const p of PICKUPS) this.casse.push({ s: this.add.image(p.x, GROUND_Y, 'cassa').setOrigin(0.5, 1).setDepth(40), arma: p.arma });
+      for (const p of PICKUPS) this.casse.push({ s: img(this, p.x, GROUND_Y, `cassa_${p.arma}`, 'cassa').setOrigin(0.5, 1).setDepth(40), arma: p.arma });
     }
 
     for (const pp of this.fase === 'strada' ? PROPS_STRADA : PROPS_CANTINA) {
@@ -111,6 +112,7 @@ export class GameScene extends Phaser.Scene implements World {
     this.cameras.main.fadeIn(400);
 
     if (this.fase === 'strada') {
+      musica('strada');
       this.annuncio('MISSIONE 1', 'ARRIVA AL BAR BUCANEVE');
     } else {
       this.introEttore();
@@ -146,9 +148,21 @@ export class GameScene extends Phaser.Scene implements World {
   }
   scuoti(ms: number, amt: number): void { this.cameras.main.shake(ms, amt); }
   boom(x: number, y: number, grande: boolean): void {
-    const s = this.add.image(x, y, 'boom0').setDepth(70).setScale(grande ? 1.2 : 0.6);
+    // esplosione disegnata (8 fotogrammi) se c'è, altrimenti quella del codice
+    const dis = !!FX.boom_0;
+    const k = grande ? 1.25 : 0.7;
+    const s = dis ? img(this, x, y, 'boom_0', 'boom0', k).setOrigin(0.5, 0.75) : this.add.image(x, y, 'boom0').setScale(grande ? 1.2 : 0.6);
+    s.setDepth(70);
     let i = 0;
-    this.time.addEvent({ delay: 45, repeat: 7, callback: () => { i++; if (i < 8) s.setTexture(`boom${i}`); else s.destroy(); } });
+    this.time.addEvent({ delay: dis ? 60 : 45, repeat: 7, callback: () => {
+      i++;
+      if (i >= 8) { s.destroy(); return; }
+      if (dis) { const t = fxTex(`boom_${i}`, 'boom0'); s.setTexture(t.key).setScale(t.s * k); } else s.setTexture(`boom${i}`);
+    } });
+    if (dis && grande) { // cratere annerito a terra
+      const c = img(this, x, GROUND_Y + 3, 'cratere', 'fumo', 0.8).setOrigin(0.5, 1).setDepth(29);
+      this.tweens.add({ targets: c, alpha: 0, delay: 2500, duration: 800, onComplete: () => c.destroy() });
+    }
     sfx('boom'); if (grande) this.scuoti(160, 0.01);
   }
   hitstop(sec: number): void {
@@ -362,7 +376,7 @@ export class GameScene extends Phaser.Scene implements World {
       }
       // a volte lascia un premio
       const r = Math.random();
-      if (r < 0.35) this.premi.push({ s: this.add.image(x, GROUND_Y, r < 0.15 ? 'premio_bombe' : 'premio_gelato').setOrigin(0.5, 1).setDepth(41), tipo: r < 0.15 ? 'bombe' : 'gelato' });
+      if (r < 0.35) this.premi.push({ s: (r < 0.15 ? img(this, x, GROUND_Y, 'cassa_bombe', 'premio_bombe', 0.75) : this.add.image(x, GROUND_Y, 'premio_gelato')).setOrigin(0.5, 1).setDepth(41), tipo: r < 0.15 ? 'bombe' : 'gelato' });
     }
     pr.s.destroy();
   }
@@ -378,6 +392,11 @@ export class GameScene extends Phaser.Scene implements World {
     this.premi = this.premi.filter((q) => q.s.active);
   }
   private scintilla(x: number, y: number): void {
+    if (FX.scintille_1) {
+      const s = img(this, x, y, Math.random() < 0.5 ? 'scintille_1' : 'scintille_2', 'flame', 0.6).setDepth(65).setAngle(Phaser.Math.Between(0, 359));
+      this.tweens.add({ targets: s, alpha: 0, duration: 140, onComplete: () => s.destroy() });
+      return;
+    }
     const s = this.add.image(x, y, 'flame').setTint(0xfff0a0).setScale(0.5).setDepth(65);
     this.tweens.add({ targets: s, alpha: 0, scale: 0.1, duration: 120, onComplete: () => s.destroy() });
   }
@@ -396,9 +415,28 @@ export class GameScene extends Phaser.Scene implements World {
       if (Math.abs(c.s.x - p.x) < 14 && p.y > GROUND_Y - 20) {
         p.prendiArma(c.arma); sfx('raccolta');
         this.testo(p.x, p.y - 62, WEAPONS[c.arma].nome + '!', '#80ff80');
+        this.apriCassa(c.s.x);
         c.s.destroy();
       }
     }
+  }
+
+  /** Cassa che si apre (6 fotogrammi disegnati) quando la si raccoglie. */
+  private apriCassa(x: number): void {
+    if (!FX.apre_1) return;
+    const s = img(this, x, GROUND_Y, 'apre_1', 'cassa').setOrigin(0.5, 1).setDepth(41);
+    let i = 1;
+    this.time.addEvent({ delay: 70, repeat: 5, callback: () => {
+      i++;
+      if (i <= 6) { const t = fxTex(`apre_${i}`, 'cassa'); s.setTexture(t.key).setScale(t.s); }
+      if (i === 6) this.tweens.add({ targets: s, alpha: 0, delay: 400, duration: 300, onComplete: () => s.destroy() });
+    } });
+  }
+  /** Sbuffo di polvere (morti, atterraggi pesanti). */
+  polvere(x: number, grande = false): void {
+    if (!FX.polvere_1) return;
+    const s = img(this, x, GROUND_Y + 1, grande ? 'polvere_3' : 'polvere_2', 'fumo', 0.8).setOrigin(0.5, 1).setDepth(46);
+    this.tweens.add({ targets: s, alpha: 0, y: GROUND_Y - 3, duration: 600, onComplete: () => s.destroy() });
   }
 
   private pulisci(): void {
@@ -460,6 +498,7 @@ export class GameScene extends Phaser.Scene implements World {
     this.time.delayedCall(2600, () => {
       this.tweens.add({ targets: c, alpha: 0, duration: 300, onComplete: () => c.destroy() });
       this.finito = false;
+      musica('battaglia-ettore');
       const e = new Ettore(this, this.camX + VIEW_W + 40); // appena fuori dallo schermo, non in fondo alla cantina
       e.onFase2 = () => {
         // a metà vita chiama rinforzi
@@ -528,7 +567,9 @@ export class GameScene extends Phaser.Scene implements World {
     fix(txt(this, 150, 4, 'BOMB', 8, '#80d0ff'));
     const armi = fix(txt(this, 128, 13, '∞', 9, '#ffe066').setOrigin(0.5, 0));
     const bombe = fix(txt(this, 162, 13, '10', 9, '#ffe066').setOrigin(0.5, 0));
-    const armaNome = fix(txt(this, 113, 26, '', 8, '#c0ffc0'));
+    const icona = fix(img(this, 113, 26, 'icona_pistola', 'px').setOrigin(0, 0));
+    if (FX.icona_bomba) fix(img(this, 175, 13, 'icona_bomba', 'px', 0.6).setOrigin(0.5, 0));
+    const armaNome = fix(txt(this, FX.icona_pistola ? 133 : 113, 28, '', 8, '#c0ffc0'));
     // centro: tempo grande
     const tempo = fix(txt(this, VIEW_W / 2 + 20, 2, '0:00', 16, '#ffe066').setOrigin(0.5, 0));
     const combo = fix(txt(this, VIEW_W / 2 + 20, 24, '', 9, '#ff6060').setOrigin(0.5, 0).setVisible(false));
@@ -551,7 +592,7 @@ export class GameScene extends Phaser.Scene implements World {
     const go = this.add.container(VIEW_W - 50, 70).setScrollFactor(0).setDepth(D).setVisible(false);
     go.add(txt(this, 0, 0, 'AVANTI', 13, '#ffe066').setOrigin(0.5));
     go.add(this.add.image(0, 18, 'freccia'));
-    this.hud = { vita, vite, punti, armi, bombe, armaNome, tempo, combo, boss, bossSeg, pausa, go };
+    this.hud = { vita, vite, punti, armi, bombe, armaNome, icona, tempo, combo, boss, bossSeg, pausa, go };
   }
   private mostraGo(testo = 'AVANTI'): void {
     const g = this.hud.go; (g.list[0] as PixelText).setText(testo).setOrigin(0.5);
@@ -577,6 +618,9 @@ export class GameScene extends Phaser.Scene implements World {
     this.hud.armi.setText(p.munizioni < 0 ? '∞' : String(p.munizioni));
     this.hud.bombe.setText(String(p.bombe));
     this.hud.armaNome.setText(p.arma.id === 'pistola' ? '' : p.arma.nome);
+    const ic = fxTex(`icona_${p.arma.id}`, 'px');
+    if (this.hud.icona.texture.key !== ic.key) this.hud.icona.setTexture(ic.key).setScale(ic.s);
+    this.hud.icona.setVisible(!!FX[`icona_${p.arma.id}`]);
     const m = Math.floor(this.st.tempo / 60), sec = Math.floor(this.st.tempo % 60);
     this.hud.tempo.setText(`${m}:${String(sec).padStart(2, '0')}`);
     if (this.boss) {

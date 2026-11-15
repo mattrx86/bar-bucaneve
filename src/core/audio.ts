@@ -79,7 +79,7 @@ export function sfx(name: Sfx): void {
 // ---------------------------------------------------------------------------
 // VOCI REGISTRATE (mp3 incorporati): decodificate al primo uso.
 // ---------------------------------------------------------------------------
-import { VOCI } from '../content/extra';
+import { VOCI, MUSICA } from '../content/extra';
 const buffers: Record<string, AudioBuffer | null> = {};
 let ultimaVoce: AudioBufferSourceNode | null = null;
 const ultimoUso: Record<string, number> = {};
@@ -112,5 +112,57 @@ export function voce(nome: string, pausa = 0, volume = 1): void {
     const g = ctx.createGain(); g.gain.value = volume;
     src.connect(g).connect(master); src.start();
     ultimaVoce = src;
+    abbassaMusica(b.duration);
   });
+}
+
+// ---------------------------------------------------------------------------
+// MUSICA (vostri brani resi "8 bit" dalla pipeline): un brano alla volta, in ciclo,
+// si abbassa da sola mentre parla una voce.
+// ---------------------------------------------------------------------------
+const VOL_MUSICA = 0.35;
+const musBuf: Record<string, AudioBuffer | null> = {};
+let musSrc: AudioBufferSourceNode | null = null;
+let musGain: GainNode | null = null;
+let musNome: string | null = null;
+
+async function decodificaMusica(nome: string): Promise<AudioBuffer | null> {
+  if (nome in musBuf) return musBuf[nome];
+  musBuf[nome] = null;
+  const d = MUSICA[nome]; if (!d || !ctx) return null;
+  try {
+    const bin = atob(d.split(',')[1]);
+    const arr = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+    musBuf[nome] = await ctx.decodeAudioData(arr.buffer);
+  } catch { musBuf[nome] = null; }
+  return musBuf[nome];
+}
+/** Avvia un brano in ciclo (null = silenzio). Se è già quello in corso non fa nulla. */
+export function musica(nome: string | null): void {
+  if (!ctx || !master) return;
+  if (nome === musNome) return;
+  musNome = nome;
+  if (musSrc && musGain) {
+    const vecchio = musSrc, g = musGain;
+    g.gain.setTargetAtTime(0, ctx.currentTime, 0.25);
+    setTimeout(() => { try { vecchio.stop(); } catch { /* già ferma */ } }, 1200);
+    musSrc = null; musGain = null;
+  }
+  if (!nome) return;
+  void decodificaMusica(nome).then((b) => {
+    if (!b || !ctx || !master || musNome !== nome) return;
+    const src = ctx.createBufferSource(); src.buffer = b; src.loop = true;
+    const g = ctx.createGain(); g.gain.value = 0;
+    g.gain.setTargetAtTime(VOL_MUSICA, ctx.currentTime, 0.4);
+    src.connect(g).connect(master); src.start();
+    musSrc = src; musGain = g;
+  });
+}
+function abbassaMusica(sec: number): void {
+  if (!ctx || !musGain) return;
+  const t = ctx.currentTime;
+  musGain.gain.cancelScheduledValues(t);
+  musGain.gain.setTargetAtTime(VOL_MUSICA * 0.3, t, 0.08);
+  musGain.gain.setTargetAtTime(VOL_MUSICA, t + sec, 0.3);
 }

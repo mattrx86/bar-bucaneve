@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { VIEW_W, VIEW_H, GROUND_Y, HEROES } from '../content/defs';
 import { Controls } from '../core/controls';
-import { unlockAudio, sfx, preparaVoci } from '../core/audio';
+import { unlockAudio, sfx, preparaVoci, musica } from '../core/audio';
 import { leaderboard } from '../core/save';
 import { setPose } from '../entities';
 import { txt, zoomCamera } from '../core/ui';
@@ -13,6 +13,7 @@ export class TitleScene extends Phaser.Scene {
   constructor() { super('Title'); }
 
   create(): void {
+    musica(null);
     zoomCamera(this);
     this.pronto = false; // la scena viene riusata: senza questo il ritardo anti-tasto vale solo la prima volta
     // facciata del Bucaneve come sfondo

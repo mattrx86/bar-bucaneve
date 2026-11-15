@@ -1,4 +1,4 @@
-# Bar Bucaneve - prototipo 0.5
+# Bar Bucaneve - prototipo 0.6
 
 Aprite `bar-bucaneve.html` con Chrome, Edge o Firefox (doppio clic). Non serve installare nulla, non serve internet.
 
@@ -50,3 +50,9 @@ Aprite `bar-bucaneve.html` con Chrome, Edge o Firefox (doppio clic). Non serve i
 ## Novità della 0.5
 - Grafica molto più definita: il gioco ragiona sempre in 384x216 (stile Metal Slug), ma ora disegna a 3 volte quella risoluzione (1152x648). Personaggi, boss, oggetti e fondali mostrano tutti i dettagli dei vostri disegni invece di essere ridotti a pochi pixel.
 - Il gioco si adatta alla finestra mantenendo le proporzioni.
+
+## Novità della 0.6
+- Paolo giocabile.
+- La vostra grafica per casse armi (si aprono quando le prendete), proiettili, razzi, granate, lampi di sparo, esplosioni con cratere, scintille, polvere e icone delle armi nell'HUD.
+- Musica: "strada" in strada e da Giova, "battaglia-ettore" in cantina, resa in stile 8 bit; si abbassa quando parlano i personaggi.
+- Niente più aloni chiari attorno ai personaggi; gli occhiali di Giova non sono più trasparenti.

@@ -4,7 +4,7 @@
 set -e
 mkdir -p anteprime
 python3 tools/build_assets.py grafica src/content/sprites.ts anteprime
-python3 tools/build_extra.py grafica/oggetti/oggetti.png grafica/voci src/content/extra.ts anteprime/oggetti.png
+python3 tools/build_extra.py grafica/oggetti/oggetti.png grafica/voci src/content/extra.ts anteprime/oggetti.png grafica/oggetti/armi.png grafica/musica
 npx tsc --noEmit -p .
 npx vite build
 cp dist/index.html bar-bucaneve.html

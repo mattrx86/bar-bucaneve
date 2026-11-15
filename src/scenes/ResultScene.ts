@@ -2,7 +2,7 @@ import Phaser from 'phaser';
 import { VIEW_W, VIEW_H } from '../content/defs';
 import { Controls } from '../core/controls';
 import { leaderboard } from '../core/save';
-import { sfx } from '../core/audio';
+import { sfx, musica } from '../core/audio';
 import { txt, zoomCamera } from '../core/ui';
 
 export interface Risultato { vittoria: boolean; punti: number; tempo: number; nome: string }
@@ -32,6 +32,7 @@ export class ResultScene extends Phaser.Scene {
     });
     const p = txt(this, VIEW_W / 2, VIEW_H - 12, 'INVIO per giocare ancora', 9).setOrigin(0.5);
     this.tweens.add({ targets: p, alpha: 0.2, duration: 500, yoyo: true, repeat: -1 });
+    musica(null);
     sfx(r.vittoria ? 'raccolta' : 'morte');
     this.ctrl = new Controls(this);
     this.entrata = this.time.now;

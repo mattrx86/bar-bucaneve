@@ -47,3 +47,23 @@ export function bakeFx(sc: Phaser.Scene): void {
   bake(sc, 'seg_boss', 5, 6, (g) => { g.fillStyle(0xe03030); g.fillRect(0, 0, 5, 6); g.fillStyle(0xff8080); g.fillRect(0, 0, 5, 2); });
   bake(sc, 'freccia', 14, 12, (g) => { g.fillStyle(0xffe066); g.fillRect(0, 3, 8, 6); g.fillTriangle(8, 0, 14, 6, 8, 12); });
 }
+
+// ---------------------------------------------------------------------------
+// Grafica disegnata da voi (foglio armi ed esplosioni): texture "fx_<nome>" ad alta densità.
+// `img()` crea un'immagine già alla scala giusta; se il disegno manca usa quello del codice.
+// ---------------------------------------------------------------------------
+import { FX } from '../content/extra';
+export function caricaFx(sc: Phaser.Scene): void {
+  for (const [k, v] of Object.entries(FX)) sc.load.image(`fx_${k}`, v.data);
+}
+/** Chiave della texture disegnata (se esiste) e scala da applicare. */
+export function fxTex(nome: string, ripiego: string): { key: string; s: number } {
+  const f = FX[nome];
+  return f ? { key: `fx_${nome}`, s: 1 / f.d } : { key: ripiego, s: 1 };
+}
+export function img(sc: Phaser.Scene, x: number, y: number, nome: string, ripiego: string, scala = 1): Phaser.GameObjects.Image {
+  const t = fxTex(nome, ripiego);
+  return sc.add.image(x, y, t.key).setScale(t.s * scala);
+}
+/** Mappa texture "del codice" -> disegno vostro, per i proiettili. */
+export const PROIETTILI_DISEGNATI: Record<string, string> = { bullet: 'proiettile', rocket: 'razzo', bomba: 'granata' };

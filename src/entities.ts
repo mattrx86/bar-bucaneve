@@ -7,6 +7,7 @@ import Phaser from 'phaser';
 import { GROUND_Y, WEAPONS, WeaponDef, HeroDef, EnemyDef, GIOVA, ETTORE, FRASI_ETTORE, FRASI_GIOVA, DiffDef, BALCONE_Y } from './content/defs';
 import { SHEETS } from './content/sprites';
 import { sfx, voce } from './core/audio';
+import { fxTex, img, PROIETTILI_DISEGNATI } from './core/fx';
 
 export const GRAVITY = 980;
 const R = Math.PI / 180;
@@ -43,6 +44,7 @@ export interface World {
   /** uccisione di un nemico: gestisce combo e moltiplicatori */
   uccisione(base: number, x: number, y: number, mischia: boolean): void;
   bossolo(x: number, y: number, dir: number): void;
+  polvere?(x: number, grande?: boolean): void;
   giocatoreColpito(): void;
   diff: DiffDef;
 }
@@ -59,9 +61,11 @@ export class Bullet {
   vx: number; vy: number; vissuto = 0; morto = false;
   colpiti = new Set<unknown>();
   constructor(public w: World, public o: BulletOpts) {
-    this.sprite = w.sc.add.image(o.x, o.y, o.tex).setDepth(60).setRotation(o.ang);
-    if (o.colore !== undefined) this.sprite.setTint(o.colore);
-    if (o.scala) this.sprite.setScale(o.scala);
+    // proiettili, razzi e granate disegnati da voi (se ci sono), altrimenti quelli del codice
+    const dis = PROIETTILI_DISEGNATI[o.tex] ? fxTex(PROIETTILI_DISEGNATI[o.tex], o.tex) : { key: o.tex, s: 1 };
+    this.sprite = w.sc.add.image(o.x, o.y, dis.key).setDepth(60).setRotation(o.ang);
+    if (o.colore !== undefined && dis.key === o.tex) this.sprite.setTint(o.colore);
+    this.sprite.setScale((o.scala ?? 1) * dis.s);
     this.vx = Math.cos(o.ang) * o.speed; this.vy = Math.sin(o.ang) * o.speed;
   }
   update(dt: number): void {
@@ -214,7 +218,7 @@ export class Player {
         scala: a.id === 'fiamma' ? 0.9 : 1,
       });
     }
-    const fl = this.w.sc.add.image(b.x, b.y, 'flash0').setOrigin(0, 0.5).setDepth(61).setRotation(b.ang);
+    const fl = img(this.w.sc, b.x, b.y, a.id === 'pistola' ? 'lampo_1' : 'lampo_2', 'flash0').setOrigin(0, 0.5).setDepth(61).setRotation(b.ang);
     this.w.sc.tweens.add({ targets: fl, alpha: 0, duration: 70, onComplete: () => fl.destroy() });
     if (a.id !== 'fiamma' && a.id !== 'lanciarazzi') this.w.bossolo(this.x + (this.guardaDx ? 4 : -4), b.y + 3, this.guardaDx ? -1 : 1);
     sfx(a.id === 'mitragliatrice' ? 'mitra' : a.id === 'fucile' ? 'fucile' : a.id === 'lanciarazzi' ? 'razzo' : a.id === 'fiamma' ? 'fiamma' : 'pistola');
@@ -251,6 +255,7 @@ export class Enemy {
   private t = 0; private attT: number; private lampo = 0; private colpo = false;
   private oscilla = Math.random() * 6;
   private entrato = false;
+  private polvereFatta = false;
   private cadeVy = 0;
   private alto: boolean;
 
@@ -291,6 +296,7 @@ export class Enemy {
         this.cadeVy += GRAVITY * dt; this.y = Math.min(GROUND_Y, this.y + this.cadeVy * dt);
       }
       const f = this.mortoT < 0.12 ? 'hit' : this.mortoT < 0.3 ? 'death_01' : this.mortoT < 0.5 ? 'death_02' : 'death_03';
+      if (f === 'death_03' && !this.polvereFatta) { this.polvereFatta = true; this.w.polvere?.(this.x); }
       setPose(this.sprite, this.sheet, f);
       this.sprite.setPosition(Math.round(this.x), Math.round(this.y)).setFlipX(!this.guardaDx);
       lampeggia(this.sprite, false);
@@ -418,7 +424,7 @@ export abstract class BossBase {
   danno(n: number): void {
     if (this.morto || !this.attivo) return;
     this.vita -= n * this.moltiplicatore(); this.lampo = 0.05; sfx('bossColpito'); this.w.hitstop(0.012);
-    if (this.vita <= 0) { this.vita = 0; this.morto = true; this.mortoT = 0; sfx('bossMorto'); this.w.hitstop(0.25); this.w.punti(Math.round(this.punti * this.w.diff.punti), this.x, this.y - 90); this.w.scuoti(500, 0.012); this.onMorte?.(); }
+    if (this.vita <= 0) { this.vita = 0; this.morto = true; this.mortoT = 0; sfx('bossMorto'); this.w.sc.time.delayedCall(900, () => this.w.polvere?.(this.x, true)); this.w.hitstop(0.25); this.w.punti(Math.round(this.punti * this.w.diff.punti), this.x, this.y - 90); this.w.scuoti(500, 0.012); this.onMorte?.(); }
   }
   protected disegna(posa: string): void {
     setPose(this.sprite, this.sheet, posa);
@@ -610,7 +616,7 @@ export class Ettore extends BossBase {
       const a = this.mira.ang + ((i / (n - 1)) * 2 - 1) * spread * R;
       this.w.sparaProiettile({ x: this.mira.x, y: this.mira.y, ang: a, speed: 270, danno: ETTORE.danno, tex: 'pellet', ostile: true, gittata: 420 });
     }
-    const fl = this.w.sc.add.image(this.mira.x, this.mira.y, 'flash0').setOrigin(0, 0.5).setScale(2).setDepth(61).setRotation(this.mira.ang);
+    const fl = img(this.w.sc, this.mira.x, this.mira.y, 'lampo_3', 'flash0', 1.3).setOrigin(0, 0.5).setDepth(61).setRotation(this.mira.ang);
     this.w.sc.tweens.add({ targets: fl, alpha: 0, duration: 90, onComplete: () => fl.destroy() });
     sfx('fucile'); this.w.scuoti(120, 0.008);
     this.x -= (this.guardaDx ? 1 : -1) * 6; // rinculo
