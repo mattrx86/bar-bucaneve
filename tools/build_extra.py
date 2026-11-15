@@ -17,6 +17,7 @@ def to_small(img, s):
     return np.dstack([rgb.clip(0, 255), (a > 120) * 255]).astype(np.uint8)
 
 def b64png(im):
+    if im.mode == 'RGBA': im = im.quantize(256, method=Image.Quantize.FASTOCTREE, dither=Image.Dither.NONE)
     b = io.BytesIO(); im.save(b, 'PNG', optimize=True)
     return 'data:image/png;base64,' + base64.b64encode(b.getvalue()).decode()
 
@@ -38,17 +39,17 @@ for k, riga in enumerate(NOMI):
     if len(r) != len(riga): raise SystemExit(f'riga {k}: trovati {len(r)} oggetti, attesi {len(riga)}')
     for (nome, h), c in zip(riga, r):
         img = c['img']; hh = (img[..., 3] > 0).any(1).sum()
-        sm = ink(to_small(img, h / hh))
+        d = round(min(3, hh / h), 2)  # densita' come per gli sprite
+        sm = ink(to_small(img, h * d / hh))
         m = sm[..., 3] > 0; ys, xs = np.where(m)
         sm = sm[ys.min():ys.max() + 1, xs.min():xs.max() + 1]
-        props[nome] = dict(data=b64png(Image.fromarray(sm)), w=int(sm.shape[1]), h=int(sm.shape[0]))
+        props[nome] = dict(data=b64png(Image.fromarray(sm)), w=round(sm.shape[1] / d, 1), h=round(sm.shape[0] / d, 1), d=d)
 # anteprima
-W = sum(p['w'] + 4 for p in props.values()); H = max(p['h'] for p in props.values())
+ims = [Image.open(io.BytesIO(base64.b64decode(p['data'].split(',')[1]))).convert('RGBA') for p in props.values()]
+W = sum(i.width + 8 for i in ims); H = max(i.height for i in ims)
 pv = Image.new('RGBA', (W, H + 2), (70, 78, 92, 255)); x = 0
-for p in props.values():
-    im = Image.open(io.BytesIO(base64.b64decode(p['data'].split(',')[1])))
-    pv.alpha_composite(im, (x, H - p['h'])); x += p['w'] + 4
-pv.resize((W * 2, (H + 2) * 2), Image.NEAREST).save(PREV)
+for im in ims: pv.alpha_composite(im, (x, H - im.height)); x += im.width + 8
+pv.save(PREV)
 voci = {}
 tmp = tempfile.mkdtemp()
 for f in sorted(os.listdir(VOCI)):
@@ -61,6 +62,6 @@ for f in sorted(os.listdir(VOCI)):
     voci[nome.lower()] = 'data:audio/mpeg;base64,' + base64.b64encode(open(out, 'rb').read()).decode()
 with open(OUT, 'w') as f:
     f.write('// GENERATO da tools/build_extra.py - non modificare a mano.\n')
-    f.write('export const PROPS: Record<string, { data: string; w: number; h: number }> = ' + json.dumps(props) + ';\n')
+    f.write('export const PROPS: Record<string, { data: string; w: number; h: number; d: number }> = ' + json.dumps(props) + ';\n')
     f.write('export const VOCI: Record<string, string> = ' + json.dumps(voci) + ';\n')
 print(len(props), 'oggetti,', len(voci), 'voci,', os.path.getsize(OUT) // 1024, 'KB')

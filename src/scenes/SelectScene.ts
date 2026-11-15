@@ -4,7 +4,7 @@ import { Controls } from '../core/controls';
 import { sfx } from '../core/audio';
 import { loadSave, writeSave } from '../core/save';
 import { setPose } from '../entities';
-import { txt, PixelText } from '../core/ui';
+import { txt, zoomCamera, PixelText } from '../core/ui';
 
 export class SelectScene extends Phaser.Scene {
   private ctrl!: Controls;
@@ -19,6 +19,7 @@ export class SelectScene extends Phaser.Scene {
   constructor() { super('Select'); }
 
   create(): void {
+    zoomCamera(this);
     this.add.rectangle(0, 0, VIEW_W, VIEW_H, 0x141824).setOrigin(0);
     txt(this, VIEW_W / 2, 14, 'SCEGLI IL PERSONAGGIO', 13, '#ffe066', 4).setOrigin(0.5);
     const salvato = loadSave().charId;
@@ -39,7 +40,7 @@ export class SelectScene extends Phaser.Scene {
     this.ultimo = -1000;
     this.refresh();
     this.input.on('pointerdown', (p: Phaser.Input.Pointer) => {
-      const i = Math.round((p.x - this.px(0)) / this.passo());
+      const i = Math.round((p.worldX - this.px(0)) / this.passo());
       if (i >= 0 && i < HEROES.length) { if (i === this.idx) this.conferma(); else { this.idx = i; this.refresh(); } }
     });
   }

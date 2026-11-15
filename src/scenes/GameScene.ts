@@ -17,7 +17,7 @@ interface Prop { s: Phaser.GameObjects.Image; def: PropPos; vita: number; rompe:
 import { Controls } from '../core/controls';
 import { sfx, setMuted, isMuted, voce } from '../core/audio';
 import { loadSave, writeSave } from '../core/save';
-import { txt, PixelText } from '../core/ui';
+import { txt, zoomCamera, PixelText } from '../core/ui';
 import type { Risultato } from './ResultScene';
 
 export interface Stato { punti: number; vite: number; tempo: number; arma: string; munizioni: number; bombe: number; crediti: number; checkpoint?: 'meta' | 'giova' }
@@ -72,10 +72,12 @@ export class GameScene extends Phaser.Scene implements World {
   }
 
   create(): void {
+    zoomCamera(this);
     this.hero = getHero(loadSave().charId);
     const pezzi = this.fase === 'strada' ? BG.street.parts : BG.cellar.parts;
     this.larghezza = this.fase === 'strada' ? BG.street.w : BG.cellar.w;
-    pezzi.forEach((_, i) => this.add.image(i * 512, 0, `bg_${this.fase === 'strada' ? 'street' : 'cellar'}_${i}`).setOrigin(0).setDepth(0));
+    const dens = this.fase === 'strada' ? BG.street.d : BG.cellar.d;
+    pezzi.forEach((_, i) => this.add.image(i * 512, 0, `bg_${this.fase === 'strada' ? 'street' : 'cellar'}_${i}`).setOrigin(0).setDepth(0).setScale(1 / dens));
 
     if (this.fase === 'strada') {
       // insegna del bar (ChatGPT non scrive bene le lettere: la mettiamo noi)
@@ -87,7 +89,7 @@ export class GameScene extends Phaser.Scene implements World {
 
     for (const pp of this.fase === 'strada' ? PROPS_STRADA : PROPS_CANTINA) {
       const d = PROPS[pp.nome]; if (!d) continue;
-      const im = this.add.image(pp.x, GROUND_Y + 2 + (pp.dy ?? 0), `prop_${pp.nome}`).setOrigin(0.5, 1).setDepth(30);
+      const im = this.add.image(pp.x, GROUND_Y + 2 + (pp.dy ?? 0), `prop_${pp.nome}`).setOrigin(0.5, 1).setDepth(30).setScale(1 / d.d);
       if (pp.rompe) this.props.push({ s: im, def: pp, vita: pp.vita ?? 20, rompe: pp.rompe });
     }
 
@@ -106,7 +108,6 @@ export class GameScene extends Phaser.Scene implements World {
 
     this.ctrl = new Controls(this);
     this.creaHud();
-    this.cameras.main.setBounds(0, 0, this.larghezza, VIEW_H);
     this.cameras.main.fadeIn(400);
 
     if (this.fase === 'strada') {
@@ -448,7 +449,7 @@ export class GameScene extends Phaser.Scene implements World {
     this.finito = true; // blocca i comandi durante la presentazione
     const c = this.add.container(0, 0).setScrollFactor(0).setDepth(200);
     c.add(this.add.rectangle(0, 0, VIEW_W, VIEW_H, 0x000000, 0.75).setOrigin(0));
-    const r = this.add.image(VIEW_W - 90, VIEW_H, 'ettore_ritratto').setOrigin(0.5, 1);
+    const r = this.add.image(VIEW_W - 90, VIEW_H, 'ettore_ritratto').setOrigin(0.5, 1).setScale(1 / SHEETS.ettore_ritratto.d);
     c.add(r);
     c.add(txt(this, 20, 70, 'ETTORE', 26, '#ff5040', 6));
     c.add(txt(this, 22, 102, 'IL BARISTA CON LA DOPPIETTA', 9));
@@ -535,8 +536,8 @@ export class GameScene extends Phaser.Scene implements World {
     fix(this.add.rectangle(VIEW_W - 34, 2, 30, 30, 0x0a0c18).setOrigin(0).setStrokeStyle(1, 0xffe066));
     const sh = SHEETS[`hero_${this.hero.id}`];
     const ritr = fix(this.add.sprite(VIEW_W - 19, 0, `sh_hero_${this.hero.id}`, sh.frames.indexOf('idle')).setOrigin(0.5, 0));
-    const top = Math.max(0, sh.foot - 56);
-    ritr.setCrop(sh.cw / 2 - 14, top, 28, 29); ritr.y = 3 - top;
+    const top = Math.max(0, sh.foot - 56 * sh.d);
+    ritr.setScale(1 / sh.d).setCrop(sh.cw / 2 - 14 * sh.d, top, 28 * sh.d, 29 * sh.d); ritr.y = 3 - top / sh.d;
     fix(txt(this, VIEW_W - 37, 4, this.hero.nome, 8, '#ffffff').setOrigin(1, 0));
     fix(txt(this, VIEW_W - 37, 14, this.diff.nome, 8, '#c8d0e0').setOrigin(1, 0));
     // barra del boss in basso

@@ -5,12 +5,13 @@ import { bakeFx } from '../core/fx';
 import { bakeFont } from '../core/font';
 import { loadSave } from '../core/save';
 import { setMuted } from '../core/audio';
-import { txt } from '../core/ui';
+import { txt, zoomCamera } from '../core/ui';
 
 /** Carica tutti gli sprite e i fondali (incorporati nel file HTML). */
 export class BootScene extends Phaser.Scene {
   constructor() { super('Boot'); }
   preload(): void {
+    zoomCamera(this);
     bakeFont(this);
     const t = txt(this, 192, 108, 'CARICAMENTO...', 10).setOrigin(0.5);
     this.load.on('progress', (v: number) => t.setText(`CARICAMENTO ${Math.round(v * 100)}%`));

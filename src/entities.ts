@@ -17,7 +17,7 @@ export function setPose(s: Phaser.GameObjects.Sprite, sheet: string, pose: strin
   const i = Math.max(0, d.frames.indexOf(pose));
   const key = `sh_${sheet}`;
   if (s.texture.key !== key) s.setTexture(key, i); else s.setFrame(i);
-  s.setOrigin(0.5, d.foot / d.ch);
+  s.setOrigin(0.5, d.foot / d.ch).setScale(1 / d.d);
 }
 
 export interface BulletOpts {

@@ -1,4 +1,4 @@
-# Bar Bucaneve - prototipo 0.4
+# Bar Bucaneve - prototipo 0.5
 
 Aprite `bar-bucaneve.html` con Chrome, Edge o Firefox (doppio clic). Non serve installare nulla, non serve internet.
 
@@ -46,3 +46,7 @@ Aprite `bar-bucaneve.html` con Chrome, Edge o Firefox (doppio clic). Non serve i
 - I menu si confermano solo con Invio o Spazio (sparando o saltando non si saltano più per sbaglio).
 - I pallettoni di Ettore sono un po' più lenti: da lontano si schivano meglio.
 - Fascia scura dietro i numeri in alto, più leggibili.
+
+## Novità della 0.5
+- Grafica molto più definita: il gioco ragiona sempre in 384x216 (stile Metal Slug), ma ora disegna a 3 volte quella risoluzione (1152x648). Personaggi, boss, oggetti e fondali mostrano tutti i dettagli dei vostri disegni invece di essere ridotti a pochi pixel.
+- Il gioco si adatta alla finestra mantenendo le proporzioni.

@@ -7,6 +7,8 @@ import { SHEETS } from './sprites';
 export const VIEW_W = 384;
 export const VIEW_H = 216;
 export const GROUND_Y = 180; // linea dei piedi
+/** Il gioco ragiona in 384x216 ma disegna a 3x (1152x648): così si vedono i dettagli dei disegni. */
+export const ZOOM = 3;
 
 // ---------------------------------------------------------------------------
 // EROI (lo sprite è il foglio `hero_<id>` generato da tools/build_assets.py)

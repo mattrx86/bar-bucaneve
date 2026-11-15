@@ -4,7 +4,7 @@ import { Controls } from '../core/controls';
 import { unlockAudio, sfx, preparaVoci } from '../core/audio';
 import { leaderboard } from '../core/save';
 import { setPose } from '../entities';
-import { txt } from '../core/ui';
+import { txt, zoomCamera } from '../core/ui';
 import { BG } from '../content/sprites';
 
 export class TitleScene extends Phaser.Scene {
@@ -13,10 +13,11 @@ export class TitleScene extends Phaser.Scene {
   constructor() { super('Title'); }
 
   create(): void {
+    zoomCamera(this);
     this.pronto = false; // la scena viene riusata: senza questo il ritardo anti-tasto vale solo la prima volta
     // facciata del Bucaneve come sfondo
     const off = BG.street.barX + BG.street.barW / 2 - VIEW_W / 2;
-    BG.street.parts.forEach((_, i) => { if (i >= 4) this.add.image(i * 512 - off, 0, `bg_street_${i}`).setOrigin(0); });
+    BG.street.parts.forEach((_, i) => { if (i >= 4) this.add.image(i * 512 - off, 0, `bg_street_${i}`).setOrigin(0).setScale(1 / BG.street.d); });
     this.add.rectangle(0, 0, VIEW_W, VIEW_H, 0x000000, 0.45).setOrigin(0);
     const eroi = HEROES.map((h) => h.id).slice(0, 7);
     eroi.forEach((id, i) => {

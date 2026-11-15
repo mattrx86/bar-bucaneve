@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { VIEW_W, VIEW_H } from './content/defs';
+import { VIEW_W, VIEW_H, ZOOM } from './content/defs';
 import { BootScene } from './scenes/BootScene';
 import { TitleScene } from './scenes/TitleScene';
 import { SelectScene } from './scenes/SelectScene';
@@ -9,8 +9,8 @@ import { ResultScene } from './scenes/ResultScene';
 const game = new Phaser.Game({
   type: Phaser.AUTO,
   parent: 'game',
-  width: VIEW_W,
-  height: VIEW_H,
+  width: VIEW_W * ZOOM,
+  height: VIEW_H * ZOOM,
   backgroundColor: '#0a0a10',
   pixelArt: true,
   roundPixels: true,
@@ -21,13 +21,11 @@ const game = new Phaser.Game({
 (window as any).__game = game;
 
 // ---------------------------------------------------------------------------
-// Scala a pixel interi (x2, x3, x4, x5...): ogni pixel del gioco diventa un quadrato
-// esatto di pixel dello schermo, niente pixel "storti". Su schermi piccoli scala libera.
+// Il disegno (1152x648) viene adattato alla finestra mantenendo le proporzioni.
 // ---------------------------------------------------------------------------
 function adatta(): void {
   const c = game.canvas; if (!c) return;
-  let k = Math.min(window.innerWidth / VIEW_W, window.innerHeight / VIEW_H);
-  if (k >= 1) k = Math.floor(k);
+  const k = Math.min(window.innerWidth / VIEW_W, window.innerHeight / VIEW_H);
   c.style.width = `${Math.round(VIEW_W * k)}px`;
   c.style.height = `${Math.round(VIEW_H * k)}px`;
   game.scale.refresh();

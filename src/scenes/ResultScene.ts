@@ -3,7 +3,7 @@ import { VIEW_W, VIEW_H } from '../content/defs';
 import { Controls } from '../core/controls';
 import { leaderboard } from '../core/save';
 import { sfx } from '../core/audio';
-import { txt } from '../core/ui';
+import { txt, zoomCamera } from '../core/ui';
 
 export interface Risultato { vittoria: boolean; punti: number; tempo: number; nome: string }
 
@@ -13,6 +13,7 @@ export class ResultScene extends Phaser.Scene {
   private entrata = 0;
   constructor() { super('Result'); }
   create(r: Risultato): void {
+    zoomCamera(this);
     this.pronto = false; // la scena viene riusata: senza questo il ritardo anti-tasto vale solo la prima volta
     this.add.rectangle(0, 0, VIEW_W, VIEW_H, 0x0c0e16).setOrigin(0);
     txt(this, VIEW_W / 2, 26, r.vittoria ? 'ETTORE SCONFITTO!' : 'GAME OVER', 20, r.vittoria ? '#ffe066' : '#ff6060', 5).setOrigin(0.5);
