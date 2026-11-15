@@ -23,9 +23,9 @@ export class SelectScene extends Phaser.Scene {
     txt(this, VIEW_W / 2, 14, 'SCEGLI IL PERSONAGGIO', 13, '#ffe066', 4).setOrigin(0.5);
     const salvato = loadSave().charId;
     this.idx = Math.max(0, HEROES.findIndex((h) => h.id === salvato));
-    this.cursore = this.add.rectangle(0, 118, 58, 92, 0x3a4460).setStrokeStyle(2, 0xffe066);
+    this.cursore = this.add.rectangle(0, 118, this.passo() - 4, 92, 0x3a4460).setStrokeStyle(2, 0xffe066);
     this.sprites = HEROES.map((h, i) => {
-      const s = this.add.sprite(37 + i * 62, 150, `sh_hero_${h.id}`, 0);
+      const s = this.add.sprite(this.px(i), 150, `sh_hero_${h.id}`, 0);
       setPose(s, `hero_${h.id}`, 'idle');
       return s;
     });
@@ -39,7 +39,7 @@ export class SelectScene extends Phaser.Scene {
     this.ultimo = -1000;
     this.refresh();
     this.input.on('pointerdown', (p: Phaser.Input.Pointer) => {
-      const i = Math.floor((p.x - 6) / 62);
+      const i = Math.round((p.x - this.px(0)) / this.passo());
       if (i >= 0 && i < HEROES.length) { if (i === this.idx) this.conferma(); else { this.idx = i; this.refresh(); } }
     });
   }
@@ -65,6 +65,9 @@ export class SelectScene extends Phaser.Scene {
     this.idx = (this.idx + d + HEROES.length) % HEROES.length;
     sfx('menu'); this.refresh();
   }
+  /** Distanza tra i personaggi: si stringono se sono tanti. */
+  private passo(): number { return Math.min(62, 370 / HEROES.length); }
+  private px(i: number): number { return Math.round((VIEW_W - this.passo() * (HEROES.length - 1)) / 2 + i * this.passo()); }
   private cambiaDiff(d: number): void {
     if (this.time.now - this.ultimo < 180) return;
     this.ultimo = this.time.now;
@@ -74,7 +77,7 @@ export class SelectScene extends Phaser.Scene {
   private refresh(): void {
     this.diffTxt?.setText(`DIFFICOLTA: < ${DIFFICOLTA[this.diffIdx].nome} >`).setOrigin(0.5);
     const h = HEROES[this.idx];
-    this.cursore.setPosition(37 + this.idx * 62, 118);
+    this.cursore.setPosition(this.px(this.idx), 118);
     this.sprites.forEach((s, i) => s.setAlpha(i === this.idx ? 1 : 0.55));
     this.nome.setText(h.nome); this.motto.setText(h.motto);
   }

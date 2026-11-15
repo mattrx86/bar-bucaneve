@@ -1,6 +1,7 @@
 """Oggetti scenici (foglio unico) e voci registrate -> src/content/extra.ts
-Uso: python3 tools/build_extra.py <foglio_oggetti.png> <cartella_voci_mp3> <file_ts> <anteprima.png>"""
-import sys, os, io, json, base64
+Uso: python3 tools/build_extra.py grafica/oggetti/oggetti.png grafica/voci src/content/extra.ts <anteprima.png>
+Le voci possono essere .m4a .mp3 .wav .ogg: vengono pulite (silenzi), normalizzate e convertite in mp3 con ffmpeg."""
+import sys, os, io, json, base64, subprocess, tempfile
 import numpy as np
 from PIL import Image
 sys.path.insert(0, os.path.dirname(__file__))
@@ -49,9 +50,15 @@ for p in props.values():
     pv.alpha_composite(im, (x, H - p['h'])); x += p['w'] + 4
 pv.resize((W * 2, (H + 2) * 2), Image.NEAREST).save(PREV)
 voci = {}
+tmp = tempfile.mkdtemp()
 for f in sorted(os.listdir(VOCI)):
-    if f.endswith('.mp3'):
-        voci[f[:-4]] = 'data:audio/mpeg;base64,' + base64.b64encode(open(os.path.join(VOCI, f), 'rb').read()).decode()
+    nome, ext = os.path.splitext(f)
+    if ext.lower() not in ('.m4a', '.mp3', '.wav', '.ogg', '.aac'): continue
+    out = os.path.join(tmp, nome + '.mp3')
+    subprocess.run(['ffmpeg', '-v', 'error', '-y', '-i', os.path.join(VOCI, f), '-af',
+                    'silenceremove=start_periods=1:start_threshold=-45dB:stop_periods=-1:stop_threshold=-45dB:stop_duration=0.4,loudnorm=I=-14:TP=-1.5',
+                    '-ac', '1', '-ar', '32000', '-b:a', '72k', out], check=True)
+    voci[nome.lower()] = 'data:audio/mpeg;base64,' + base64.b64encode(open(out, 'rb').read()).decode()
 with open(OUT, 'w') as f:
     f.write('// GENERATO da tools/build_extra.py - non modificare a mano.\n')
     f.write('export const PROPS: Record<string, { data: string; w: number; h: number }> = ' + json.dumps(props) + ';\n')

@@ -1,5 +1,5 @@
 import Phaser from 'phaser';
-import { VIEW_W, VIEW_H, GROUND_Y } from '../content/defs';
+import { VIEW_W, VIEW_H, GROUND_Y, HEROES } from '../content/defs';
 import { Controls } from '../core/controls';
 import { unlockAudio, sfx, preparaVoci } from '../core/audio';
 import { leaderboard } from '../core/save';
@@ -18,7 +18,7 @@ export class TitleScene extends Phaser.Scene {
     const off = BG.street.barX + BG.street.barW / 2 - VIEW_W / 2;
     BG.street.parts.forEach((_, i) => { if (i >= 4) this.add.image(i * 512 - off, 0, `bg_street_${i}`).setOrigin(0); });
     this.add.rectangle(0, 0, VIEW_W, VIEW_H, 0x000000, 0.45).setOrigin(0);
-    const eroi = ['daniele', 'marco', 'michela', 'roberto', 'vero', 'mattia'];
+    const eroi = HEROES.map((h) => h.id).slice(0, 7);
     eroi.forEach((id, i) => {
       const s = this.add.sprite(36 + i * 30, GROUND_Y + 4, `sh_hero_${id}`, 0);
       setPose(s, `hero_${id}`, i % 2 ? 'idle' : 'shoot');

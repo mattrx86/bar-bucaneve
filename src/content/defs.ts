@@ -1,3 +1,4 @@
+import { SHEETS } from './sprites';
 // ============================================================================
 // CONTENUTI DEL GIOCO: eroi, armi, nemici, livelli, boss.
 // Qui si cambiano i numeri (vita, danni, ondate) senza toccare il motore.
@@ -12,13 +13,21 @@ export const GROUND_Y = 180; // linea dei piedi
 // ---------------------------------------------------------------------------
 export interface HeroDef { id: string; nome: string; motto: string; arma: string }
 
-export const HEROES: HeroDef[] = [
+const ELENCO_EROI: HeroDef[] = [
   { id: 'daniele', nome: 'DANIELE', motto: 'Cintura nera di pazienza', arma: 'pistola' },
   { id: 'marco', nome: 'MARCO', motto: 'Il primo ad arrivare al bar', arma: 'pistola' },
+  { id: 'paolo', nome: 'PAOLO', motto: 'Sempre pronto per un altro giro', arma: 'pistola' },
   { id: 'michela', nome: 'MICHELA', motto: 'Arcobaleno con la mira', arma: 'pistola' },
   { id: 'roberto', nome: 'ROBERTO', motto: 'Muscoli prima, domande dopo', arma: 'pistola' },
   { id: 'vero', nome: 'VERO', motto: 'Corre più veloce dei guai', arma: 'pistola' },
   { id: 'mattia', nome: 'MATTIA', motto: 'Dipinge anche a colpi di pistola', arma: 'pistola' },
+];
+/** Eroi giocabili: solo quelli che hanno il foglio in grafica/personaggi. Un foglio nuovo con un
+ *  nome non in elenco compare lo stesso, con un motto generico. */
+export const HEROES: HeroDef[] = [
+  ...ELENCO_EROI.filter((h) => SHEETS[`hero_${h.id}`]),
+  ...Object.keys(SHEETS).filter((k) => k.startsWith('hero_') && !ELENCO_EROI.some((h) => `hero_${h.id}` === k))
+    .map((k) => ({ id: k.slice(5), nome: k.slice(5).toUpperCase(), motto: 'Nuovo arrivato al Bucaneve', arma: 'pistola' })),
 ];
 export const getHero = (id: string | null): HeroDef => HEROES.find((h) => h.id === id) ?? HEROES[0];
 

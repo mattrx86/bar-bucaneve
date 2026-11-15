@@ -1,6 +1,6 @@
 """Pipeline grafica: fogli sprite -> strisce PNG ripulite e allineate; fondali -> pezzi in scala.
-Uso: python3 tools/build_assets.py <cartella_pacchetto> <file_ts_uscita> <cartella_anteprime>"""
-import sys, os, io, json, base64
+Uso: python3 tools/build_assets.py grafica src/content/sprites.ts <cartella_anteprime>"""
+import sys, os, io, json, base64, glob
 import numpy as np
 from PIL import Image
 from scipy import ndimage as nd
@@ -21,22 +21,27 @@ VIL_ROWS = [[f'walk_{i:02d}' for i in range(1, 7)], ['attack_01', 'attack_02', '
 ETT_ROWS = [[f'walk_{i:02d}' for i in range(1, 5)], ['idle', 'tele_01', 'tele_02', 'shoot_01'],
             ['shoot_02', 'reload_01', 'reload_02', 'reload_03'], ['hit', 'death_01', 'death_02', 'death_03', 'death_04']]
 
-ENT = [  # chiave, file, sfondo, righe, posa di riferimento, altezza in gioco, dilatazione
-    ('hero_daniele', J('Characters', 'Foglio Sprite_Daniele.png'), 'alpha', HERO_ROWS, 'idle', 54, 12),
-    ('hero_marco', J('Characters', 'Foglio Sprite_Marco.png'), 'alpha', HERO_ROWS, 'idle', 54, 12),
-    ('hero_michela', J('Characters', 'Foglio Sprite_Michela.png'), 'alpha', HERO_ROWS, 'idle', 52, 12),
-    ('hero_roberto', J('Characters', 'Foglio Sprite_Roberto.png'), 'alpha', HERO_ROWS, 'idle', 54, 12),
-    ('hero_vero', J('Characters', 'Foglio Sprite_Vero.png'), 'alpha', HERO_ROWS, 'idle', 52, 12),
-    ('hero_mattia', J('Characters', 'Foglio sprite_Mattia.png'), 'alpha', HERO_ROWS, 'idle', 54, 12),
-    ('vil_gelataia', J('Stage 1 - Street', 'Villains - Gelatai', 'Gelataia.png'), 'alpha', VIL_ROWS, 'walk_01', 56, 12),
-    ('vil_gelataio1', J('Stage 1 - Street', 'Villains - Gelatai', 'Gelataio 1.png'), 'alpha', VIL_ROWS, 'walk_01', 56, 12),
-    ('vil_gelataio2', J('Stage 1 - Street', 'Villains - Gelatai', 'Gelataio 2.png'), 'black', VIL_ROWS, 'walk_01', 56, 12),
-    ('vil_ubriaca', J('Stage 1 - Street', 'Villains - Ubriaconi', 'Ubriaca.png'), 'alpha', VIL_ROWS, 'walk_01', 60, 12),
-    ('vil_ubriaco1', J('Stage 1 - Street', 'Villains - Ubriaconi', 'Ubriaco 1.png'), 'alpha', VIL_ROWS, 'walk_01', 60, 12),
-    ('vil_ubriaco2', J('Stage 1 - Street', 'Villains - Ubriaconi', 'Ubriaco 2.png'), 'black', VIL_ROWS, 'walk_01', 60, 12),
-    ('boss_giova', J('Stage 2 - Bucaneve', 'Boss - Giova', 'Giova.png'), 'black', VIL_ROWS, 'walk_01', 76, 12),
-    ('boss_ettore', J('Stage 3 - Ettore_s Basement', 'Boss - Ettore', 'Ettore 2.png'), 'white', ETT_ROWS, 'walk_01', 120, 4),
-]
+def modo(path):
+    """Capisce da solo lo sfondo del foglio: trasparente, nero o bianco."""
+    im = np.array(Image.open(path).convert('RGBA')).astype(int)
+    if (im[..., 3] < 128).mean() > 0.2: return 'alpha'
+    c = np.concatenate([im[:4, :4, :3].reshape(-1, 3), im[-4:, -4:, :3].reshape(-1, 3)]).mean(0)
+    return 'black' if c.mean() < 60 else 'white'
+
+def cartella(*p): return sorted(glob.glob(J(*p, '*.png')))
+
+# Eroi: ogni PNG in grafica/personaggi diventa un personaggio (il nome del file = il nome)
+ALTEZZA_EROE = {'michela': 52, 'vero': 52}
+ENT = []  # chiave, file, sfondo, righe, posa di riferimento, altezza in gioco, dilatazione
+for f in cartella('personaggi'):
+    nome = os.path.splitext(os.path.basename(f))[0].lower()
+    ENT.append((f'hero_{nome}', f, modo(f), HERO_ROWS, 'idle', ALTEZZA_EROE.get(nome, 54), 12))
+for f in cartella('livello1-strada', 'gelatai'):
+    ENT.append(('vil_' + os.path.splitext(os.path.basename(f))[0].lower(), f, modo(f), VIL_ROWS, 'walk_01', 56, 12))
+for f in cartella('livello1-strada', 'ubriachi'):
+    ENT.append(('vil_' + os.path.splitext(os.path.basename(f))[0].lower(), f, modo(f), VIL_ROWS, 'walk_01', 60, 12))
+_g = J('livello2-bucaneve', 'boss-giova', 'giova.png'); ENT.append(('boss_giova', _g, modo(_g), VIL_ROWS, 'walk_01', 76, 12))
+_e = J('livello3-cantina', 'boss-ettore', 'pose.png'); ENT.append(('boss_ettore', _e, modo(_e), ETT_ROWS, 'walk_01', 120, 4))
 
 def to_small(img, s):
     h, w = img.shape[:2]
@@ -112,7 +117,7 @@ for key, path, mode, ROWS, refpose, target, dil in ENT:
     Image.fromarray(d).resize((strip.width * 2, ch * 2), Image.NEAREST).save(f'{PREV}/{key}.png')
 
 # --- ritratto grande di Ettore (scheda di presentazione) ---
-a = peel(load_mask(J('Stage 3 - Ettore_s Basement', 'Boss - Ettore', 'Ettore 1.png'), 'white'))
+_r = J('livello3-cantina', 'boss-ettore', 'ritratto.png'); a = peel(load_mask(_r, modo(_r)))
 R = rows(components(a, dil=6)); por = R[0][1]['img']
 hh = (por[..., 3] > 0).any(1).sum(); sm = to_small(por, 150 / hh)
 SHEETS['ettore_ritratto'] = dict(data=b64png(Image.fromarray(sm)), cw=sm.shape[1], ch=sm.shape[0], foot=sm.shape[0], frames=['x'], muzzle={})
@@ -124,13 +129,11 @@ def scaled(path, s):
     return im.resize((round(im.width * s), round(im.height * s)), Image.LANCZOS)
 GROUND = 180; VH = 216
 S_STREET = 0.415
-street_files = ['Borgo Alpino Sotto la Tempesta.png', 'Immagine ChatGPT 12 nov 2026, 23_19_06.png',
-                'Immagine ChatGPT 12 nov 2026, 23_19_52.png', 'Immagine ChatGPT 12 nov 2026, 23_20_56.png']
 def crop_ground(im, feet_frac, s, H0):
     fy = feet_frac * H0 * s; top = int(round(fy - GROUND))
     return im.crop((0, top, im.width, top + VH))
-pieces = [crop_ground(scaled(J('Stage 1 - Street', 'Background', f), S_STREET), 0.905, S_STREET, 941) for f in street_files]
-bar = crop_ground(scaled(J('Stage 2 - Bucaneve', 'Background', 'Esterno Bucaneve 2D.png'), S_STREET), 0.905, S_STREET, 941)
+pieces = [crop_ground(scaled(f, S_STREET), 0.905, S_STREET, Image.open(f).height) for f in cartella('livello1-strada', 'fondali')]
+_b = J('livello2-bucaneve', 'fondale', 'esterno.png'); bar = crop_ground(scaled(_b, S_STREET), 0.905, S_STREET, Image.open(_b).height)
 pieces.append(bar)
 # Giunzioni: invece di dissolvere (che creava "palazzi fantasma") cerchiamo la coppia di colonne
 # piu' simili ai bordi dei due pezzi e tagliamo li', con una sfumatura di pochi pixel.
@@ -160,7 +163,7 @@ for x in range(0, street.width, 512):
 BG['street'] = dict(parts=parts, w=street.width, barX=bar_x, barW=bar.width, seams=seams)
 street.save(f'{PREV}/fondale_strada.png')
 S_CELL = 0.32
-cel = crop_ground(scaled(J('Stage 3 - Ettore_s Basement', 'Backgrounds', 'Deposito Gelati Vintage in Pixel Art (1).png'), S_CELL), 0.80, S_CELL, 941)
+_c = J('livello3-cantina', 'fondale', 'cantina.png'); cel = crop_ground(scaled(_c, S_CELL), 0.80, S_CELL, Image.open(_c).height)
 BG['cellar'] = dict(parts=[b64jpg(cel)], w=cel.width)
 cel.save(f'{PREV}/fondale_cantina.png')
 report.append(f'strada: {street.width} px (bar da x={bar_x}, giunzioni {seams}), cantina: {cel.width} px')
