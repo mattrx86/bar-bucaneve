@@ -11,13 +11,20 @@ def load_mask(path, mode):
     else:
         if mode == 'black': cand = mx <= 18
         elif mode == 'white': cand = (mn >= 232) & ((mx - mn) < 14)
+        full = cand
+        if mode == 'black':
+            # parti nere del disegno (occhiali, capelli) toccano lo sfondo attraverso fessure sottili
+            # del contorno: chiudiamo le fessure (apertura di 3 px) prima di riempire dal bordo
+            cand = nd.binary_opening(cand, iterations=3)
         lab, n = nd.label(cand)
         sizes = nd.sum(cand, lab, range(1, n + 1))
         border = set(np.unique(np.concatenate([lab[0], lab[-1], lab[:, 0], lab[:, -1]]))) - {0}
         keep = np.zeros(n + 1, bool)
         for i, s in enumerate(sizes, 1):
             if i in border or (s > 400 and mode != 'black'): keep[i] = True
-        fg = ~keep[lab]
+        bg = keep[lab]
+        if mode == 'black': bg = nd.binary_dilation(bg, iterations=3) & full  # ripristina il bordo
+        fg = ~bg
     fg = nd.binary_opening(fg, iterations=1)
     a[..., 3] = fg * 255
     return a
@@ -38,11 +45,13 @@ def peel(a, rounds=6):
     a[m & (nb <= 1), 3] = 0
     return a
 
-def ink(a, col=(28, 20, 16)):
+def ink(a, col=(28, 20, 16), erodi=False):
     """Dopo la riduzione: i pixel di bordo chiari e poco saturi (contorno scuro mescolato
     col vestito bianco, o resti d'alone) diventano contorno scuro invece di essere tolti.
     Toglierli (peel) lasciava i bordi frastagliati e puntini bianchi attorno alle figure."""
     a = a.copy(); m = a[..., 3] > 0
+    if erodi:  # toglie il bordo esterno (resti dell'alone lasciato dallo scontornamento)
+        a[m & ~nd.binary_erosion(m), 3] = 0; m = a[..., 3] > 0
     nb = nd.convolve(m.astype(int), np.ones((3, 3)), mode='constant') - m
     a[m & (nb <= 1), 3] = 0; m = a[..., 3] > 0   # pixel isolati
     edge = m & ~nd.binary_erosion(m)

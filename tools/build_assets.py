@@ -83,7 +83,7 @@ for key, path, mode, ROWS, refpose, target, dil in ENT:
     fr = {}
     for n, im in raw.items():
         sm = to_small(im, s)
-        if mode != 'black': sm = ink(sm)
+        if mode != 'black': sm = ink(sm, erodi=d >= 2)
         if mode == 'black':
             sm = despeckle(sm, minpx=int(4 * d * d)); sm = np.pad(sm, ((1, 1), (1, 1), (0, 0))); sm = outline(sm)
         m = sm[..., 3] > 0
