@@ -87,11 +87,18 @@ for key, path, mode, ROWS, refpose, target, dil in ENT:
     d = DMAX  # stessa grandezza di pixel per tutti
     s = target * d / rh
     fr = {}
+    is_character = key.startswith(('hero_', 'vil_', 'boss_'))
     for n, im in raw.items():
         sm = to_small(im, s)
-        if mode != 'black': sm = ink(sm, erodi=d >= 2)
+        if is_character and mode != 'black':
+            # Contorno esterno nero netto a gradini: preserva pixel interni, palette e disegno.
+            # Un pixel trasparente di margine evita di tagliare il bordo sui lati della posa.
+            sm = np.pad(sm, ((1, 1), (1, 1), (0, 0)), constant_values=0)
+            sm = outline(sm, col=(6, 6, 8))
+        elif mode != 'black':
+            sm = ink(sm, erodi=d >= 2)
         if mode == 'black':
-            sm = despeckle(sm, minpx=int(4 * d * d)); sm = np.pad(sm, ((1, 1), (1, 1), (0, 0))); sm = outline(sm)
+            sm = despeckle(sm, minpx=int(4 * d * d)); sm = np.pad(sm, ((1, 1), (1, 1), (0, 0))); sm = outline(sm, col=(6, 6, 8))
         m = sm[..., 3] > 0
         ys, xs = np.where(m)
         sm = sm[ys.min():ys.max() + 1, xs.min():xs.max() + 1]; m = sm[..., 3] > 0
@@ -166,16 +173,17 @@ def prepara(path, tipo):
 
 def pezzo(path, tipo, S, dens):
     im, piede = prepara(path, tipo)
-    # Grading uniforme e delicato: fondale un po' slavato, senza blur e senza alpha globale.
+    # Grading da fondale: meno saturo e leggermente meno contrastato dei personaggi.
     pil = Image.fromarray(im)
-    pil = ImageEnhance.Color(pil).enhance(0.91)
-    pil = ImageEnhance.Contrast(pil).enhance(0.94)
-    pil = ImageEnhance.Brightness(pil).enhance(0.98)
+    pil = ImageEnhance.Color(pil).enhance(0.84)
+    pil = ImageEnhance.Contrast(pil).enhance(0.92)
+    pil = ImageEnhance.Brightness(pil).enhance(0.99)
     pil = pil.resize((round(pil.width * S * dens), round(pil.height * S * dens)), Image.LANCZOS)
     top = int(round((piede * S - GROUND) * dens))
     if top < 0:  # immagine troppo bassa: si aggiunge cielo ripetendo la prima riga
         pil2 = Image.new('RGB', (pil.width, pil.height - top)); pil2.paste(pil.crop((0, 0, pil.width, 1)).resize((pil.width, -top)), (0, 0)); pil2.paste(pil, (0, -top)); pil = pil2; top = 0
     return pil.crop((0, top, pil.width, top + int(round(VH * dens))))
+
 
 files_strada = cartella('livello1-strada', 'fondali')
 _b = J('livello2-bucaneve', 'fondale', 'esterno.png')
