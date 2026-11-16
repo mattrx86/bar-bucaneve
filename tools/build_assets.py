@@ -2,7 +2,7 @@
 Uso: python3 tools/build_assets.py grafica src/content/sprites.ts <cartella_anteprime>"""
 import sys, os, io, json, base64, glob
 import numpy as np
-from PIL import Image
+from PIL import Image, ImageEnhance
 from scipy import ndimage as nd
 sys.path.insert(0, os.path.dirname(__file__))
 from sheet import estrai_o_ritocca, load_mask, peel, peel_dark, outline, despeckle, components, rows, ink
@@ -44,13 +44,14 @@ _g = J('livello2-bucaneve', 'boss-giova', 'giova.png'); ENT.append(('boss_giova'
 _e = J('livello3-cantina', 'boss-ettore', 'pose.png'); ENT.append(('boss_ettore', _e, modo(_e), ETT_ROWS, 'walk_01', 120, 4))
 
 def to_small(img, s):
+    """Riduce mantenendo pixel netti: niente colori intermedi creati dal filtro BOX."""
     h, w = img.shape[:2]
     nh, nw = max(1, round(h * s)), max(1, round(w * s))
-    pre = img.astype(float); pre[..., :3] *= pre[..., 3:4] / 255
-    r = np.array(Image.fromarray(pre.clip(0, 255).astype(np.uint8), 'RGBA').resize((nw, nh), Image.BOX)).astype(float)
-    a = r[..., 3]
-    rgb = np.where(a[..., None] > 0, r[..., :3] * 255 / np.maximum(a[..., None], 1), 0)
-    out = np.dstack([rgb.clip(0, 255), (a > 120) * 255]).astype(np.uint8)
+    rgba = Image.fromarray(img.astype(np.uint8), 'RGBA').resize((nw, nh), Image.Resampling.NEAREST)
+    out = np.array(rgba, dtype=np.uint8)
+    visible = out[..., 3] > 120
+    out[..., 3] = visible.astype(np.uint8) * 255
+    out[~visible, :3] = 0
     return out
 
 def b64png(im):
@@ -165,7 +166,11 @@ def prepara(path, tipo):
 
 def pezzo(path, tipo, S, dens):
     im, piede = prepara(path, tipo)
+    # Grading uniforme e delicato: fondale un po' slavato, senza blur e senza alpha globale.
     pil = Image.fromarray(im)
+    pil = ImageEnhance.Color(pil).enhance(0.91)
+    pil = ImageEnhance.Contrast(pil).enhance(0.94)
+    pil = ImageEnhance.Brightness(pil).enhance(0.98)
     pil = pil.resize((round(pil.width * S * dens), round(pil.height * S * dens)), Image.LANCZOS)
     top = int(round((piede * S - GROUND) * dens))
     if top < 0:  # immagine troppo bassa: si aggiunge cielo ripetendo la prima riga
