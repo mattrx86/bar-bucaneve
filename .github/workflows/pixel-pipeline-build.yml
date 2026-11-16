@@ -4,6 +4,7 @@ on:
     branches:
       - art-cohesion/pixel-pipeline-v1
       - art-cohesion/black-outline-preview
+      - art-cohesion/character-outline-depth
   pull_request:
     branches:
       - main
