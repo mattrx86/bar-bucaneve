@@ -2,6 +2,8 @@
 
 Tutto quello che vedete e sentite nel gioco parte da qui. Voi caricate i file, poi in chat scrivete **"prendi gli aggiornamenti"**: io li scarico, rigenero il gioco, lo provo e carico la nuova versione di `bar-bucaneve.html`. **Niente succede in automatico:** finché non me lo dite, non tocco nulla.
 
+Per chiedere **modifiche al gioco** (non solo grafica: nemici, boss, audio, livelli) usate la cartella [`richieste/`](../richieste/LEGGIMI.md) o una Issue "Richiesta di modifica".
+
 ## Come caricare un file (dal sito di GitHub)
 
 1. Aprite https://github.com/mattrx86/bar-bucaneve ed entrate nella cartella giusta (es. `grafica` → `personaggi`).

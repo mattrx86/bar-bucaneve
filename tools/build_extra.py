@@ -121,7 +121,13 @@ if ARMI:
         img = img[ys.min():ys.max() + 1, xs.min():xs.max() + 1]
         img, _ = estrai_o_ritocca('armi', nome, img)
         d = 1.5
-        sm = to_small(img, w * d / img.shape[1])
+        # i fotogrammi della cassa che si apre usano TUTTI la scala di apre_1 (cassa chiusa):
+        # cosi' il coperchio che sale allarga il disegno invece di rimpicciolire la cassa
+        if nome.startswith('apre_'):
+            if nome == 'apre_1': scala_apre = w * d / img.shape[1]
+            sm = to_small(img, scala_apre)
+        else:
+            sm = to_small(img, w * d / img.shape[1])
         if conto: sm = ink(sm)
         fx[nome] = dict(data=b64png(Image.fromarray(sm)), w=round(sm.shape[1] / d, 1), h=round(sm.shape[0] / d, 1), d=d)
     ims = [Image.open(io.BytesIO(base64.b64decode(v['data'].split(',')[1]))).convert('RGBA') for v in fx.values()]

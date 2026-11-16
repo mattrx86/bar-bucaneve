@@ -1,0 +1,48 @@
+name: Richiesta di modifica
+description: Chiedi una modifica al gioco (grafica, audio, livelli, nemici, boss...). Viene eseguita solo quando Mattia lo chiede a Claude.
+title: "[Richiesta] "
+labels: ["richiesta"]
+body:
+  - type: input
+    id: chi
+    attributes:
+      label: Chi la chiede
+      placeholder: es. Marco
+    validations:
+      required: true
+  - type: dropdown
+    id: dove
+    attributes:
+      label: Dove
+      options:
+        - Titolo / menu
+        - Scelta personaggio
+        - Strada
+        - Giova
+        - Cantina / Ettore
+        - Punteggio finale
+        - Audio (voci, musica, effetti)
+        - Comandi
+        - Altro
+    validations:
+      required: true
+  - type: textarea
+    id: cosa
+    attributes:
+      label: Cosa volete
+      description: Il risultato che volete vedere o sentire. Trascinate qui dentro immagini, audio o video come allegati.
+    validations:
+      required: true
+  - type: textarea
+    id: verifica
+    attributes:
+      label: Come capisco che è fatto bene
+      placeholder: es. "Ettore entra sul buggy rosso e scende dopo 3 secondi"
+  - type: dropdown
+    id: priorita
+    attributes:
+      label: Priorità
+      options: [bassa, media, alta]
+  - type: markdown
+    attributes:
+      value: "Il repository è pubblico: niente dati personali o password negli allegati."

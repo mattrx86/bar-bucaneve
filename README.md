@@ -1,4 +1,4 @@
-# Bar Bucaneve - prototipo 0.8
+# Bar Bucaneve - prototipo 0.9
 
 Run'n'gun stile Metal Slug. Strada di Ponte Arche (gelatai e ubriachi) -> Giova davanti al Bar Bucaneve -> Ettore in cantina.
 
@@ -16,6 +16,14 @@ Frecce/WASD muovi, J/Z/Ctrl spara (da vicino: pugno), K/X/Spazio salta, L/C bomb
 - `src/content/defs.ts`: eroi, armi, nemici, ondate, boss (i numeri si cambiano qui).
 - `src/entities.ts`: giocatore, nemici, Giova, Ettore.
 - `src/scenes/`: Boot, Title, Select, Game (fasi strada e cantina), Result.
+- `richieste/`: **richieste di modifica degli amici** (istruzioni + materiali). Le eseguo solo quando me lo dite; vedi `richieste/LEGGIMI.md`.
+
+## Novità 0.9
+- Contorno scuro a gradini su tutti i personaggi, fondali leggermente meno saturi (pipeline pixel v1).
+- Ettore: niente più linea rossa; avviso "!" prima di ogni mira, seconda fase con 3 raffiche; lampo quando colpito limitato a uno ogni 150 ms.
+- Tolti gli oggetti scenici sparsi su strada e cantina.
+- Casse più grandi (30 px); l'animazione di apertura mantiene la scala della cassa chiusa.
+- Percorso di `giova.png` con ripiego sul vecchio percorso; strumento anteprime `tools/visual_lab.py`.
 
 ## Comandi di sviluppo
 ```

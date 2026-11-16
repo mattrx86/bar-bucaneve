@@ -1,4 +1,4 @@
-# Bar Bucaneve - prototipo 0.8
+# Bar Bucaneve - prototipo 0.9
 
 Aprite `bar-bucaneve.html` con Chrome, Edge o Firefox (doppio clic). Non serve installare nulla, non serve internet.
 
@@ -19,7 +19,7 @@ Aprite `bar-bucaneve.html` con Chrome, Edge o Firefox (doppio clic). Non serve i
 ## Il livello
 1. Strada di Ponte Arche: gelatai (corrono addosso con la paletta) e ubriachi (lanciano bottiglie ad arco: saltate o spostatevi). Le casse danno armi nuove.
 2. Davanti al Bar Bucaneve: **Giova**. Quando lampeggia e grida "!", sta per caricare: saltatelo.
-3. Dentro, in cantina: **Ettore**. La linea rossa mostra dove sparerà: spostatevi, accovacciatevi o saltate. Mentre ricarica è scoperto e prende più danni. A metà vita si arrabbia e chiama due gelatai.
+3. Dentro, in cantina: **Ettore**. Quando compare il "!" sopra la sua testa sta prendendo la mira: spostatevi, accovacciatevi o saltate. Nella seconda fase spara tre raffiche di pallettoni di fila. Mentre ricarica è scoperto e prende più danni. A metà vita si arrabbia e chiama due gelatai.
 4. Alla fine: punteggio e classifica (salvata nel browser di quel computer).
 
 ## Da provare e riferirmi
