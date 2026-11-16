@@ -128,19 +128,9 @@ export const PICKUPS: { x: number; arma: string }[] = [
 // ---------------------------------------------------------------------------
 export type Rottura = 'legno' | 'vetro' | 'esplode';
 export interface PropPos { nome: string; x: number; rompe?: Rottura; vita?: number; dy?: number }
-export const PROPS_STRADA: PropPos[] = [
-  { nome: 'cono', x: 123 }, { nome: 'transenna', x: 290 }, { nome: 'cassa_vino', x: 368, rompe: 'vetro', vita: 20 },
-  { nome: 'sedia', x: 699 }, { nome: 'ombrellone', x: 729 }, { nome: 'tavolo', x: 758 },
-  { nome: 'fusto_rosso', x: 849, rompe: 'esplode', vita: 30 }, { nome: 'pianta', x: 1039 }, { nome: 'casse_rosse', x: 1184, rompe: 'vetro', vita: 20 },
-  { nome: 'carretto', x: 1300 }, { nome: 'botte', x: 1442, rompe: 'legno', vita: 35 }, { nome: 'gomme', x: 1587 },
-  { nome: 'bombole', x: 1710, rompe: 'esplode', vita: 30 }, { nome: 'cassonetto', x: 1805 }, { nome: 'cestino', x: 1844 },
-  { nome: 'scatoloni', x: 1989, rompe: 'legno', vita: 15 }, { nome: 'fusto_rosso', x: 2123, rompe: 'esplode', vita: 30 },
-  { nome: 'sacchi_rifiuti', x: 2246 }, { nome: 'pianta', x: 2370 }, { nome: 'ombrellone', x: 2515 }, { nome: 'tavolo', x: 2545 },
-  { nome: 'vetrina_gelati', x: 3006 },
-];
-export const PROPS_CANTINA: PropPos[] = [
-  { nome: 'casse_rosse', x: 150, rompe: 'vetro', vita: 20 }, { nome: 'fusto', x: 330, rompe: 'esplode', vita: 30 },
-];
+// Oggetti decorativi rimossi su richiesta: le casse arma funzionali restano in PICKUPS.
+export const PROPS_STRADA: PropPos[] = [];
+export const PROPS_CANTINA: PropPos[] = [];
 
 // ---------------------------------------------------------------------------
 // BOSS
