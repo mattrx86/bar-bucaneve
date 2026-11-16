@@ -192,10 +192,103 @@ def make_crate_scale_preview():
     canvas.paste(bg.convert("RGB"), (330, 55))
     canvas.save(OUT / "crate_scale_preview.png", optimize=True)
 
+
+def current_ink(im: Image.Image) -> Image.Image:
+    """Replica del post-trattamento ink() usato dalla pipeline corrente."""
+    a = np.array(im.convert("RGBA"), dtype=np.uint8)
+    mask = a[..., 3] > 0
+    neighbours = ndimage.convolve(mask.astype(np.int16), np.ones((3, 3), dtype=np.int16),
+                                   mode="constant") - mask.astype(np.int16)
+    a[mask & (neighbours <= 1), 3] = 0
+    mask = a[..., 3] > 0
+    edge = mask & ~ndimage.binary_erosion(mask)
+    rgb = a[..., :3].astype(np.int16)
+    mx, mn = rgb.max(axis=2), rgb.min(axis=2)
+    lum = 0.3 * rgb[..., 0] + 0.59 * rgb[..., 1] + 0.11 * rgb[..., 2]
+    a[edge & (lum > 110) & ((mx - mn) < 80), :3] = (28, 20, 16)
+    return Image.fromarray(a, "RGBA")
+
+def downsample_box(im: Image.Image, size: tuple[int, int]) -> Image.Image:
+    """Ridimensionamento attuale della pipeline: BOX con alpha premoltiplicato."""
+    a = np.array(im.convert("RGBA"), dtype=np.uint8).astype(float)
+    a[..., :3] *= a[..., 3:4] / 255
+    small = np.array(Image.fromarray(a.clip(0, 255).astype(np.uint8), "RGBA").resize(
+        size, Image.Resampling.BOX
+    )).astype(float)
+    alpha = small[..., 3]
+    rgb = np.where(alpha[..., None] > 0,
+                   small[..., :3] * 255 / np.maximum(alpha[..., None], 1), 0)
+    out = np.dstack([rgb.clip(0, 255), (alpha > 120) * 255]).astype(np.uint8)
+    return current_ink(Image.fromarray(out, "RGBA"))
+
+def downsample_nearest(im: Image.Image, size: tuple[int, int]) -> Image.Image:
+    a = np.array(im.convert("RGBA").resize(size, Image.Resampling.NEAREST), dtype=np.uint8)
+    a[..., 3] = np.where(a[..., 3] >= 128, 255, 0)
+    return current_ink(Image.fromarray(a, "RGBA"))
+
+def downsample_dominant(im: Image.Image, size: tuple[int, int]) -> Image.Image:
+    """Un colore originale dominante per cella: niente nuovi colori interpolati."""
+    src = np.array(im.convert("RGBA"), dtype=np.uint8)
+    sh, sw = src.shape[:2]
+    dw, dh = size
+    out = np.zeros((dh, dw, 4), dtype=np.uint8)
+    for y in range(dh):
+        y0, y1 = int(y * sh / dh), max(int((y + 1) * sh / dh), int(y * sh / dh) + 1)
+        for x in range(dw):
+            x0, x1 = int(x * sw / dw), max(int((x + 1) * sw / dw), int(x * sw / dw) + 1)
+            block = src[y0:y1, x0:x1]
+            visible = block[block[..., 3] >= 128, :3]
+            total = block[..., 3].size
+            if len(visible) / max(1, total) < 0.45:
+                continue
+            colours, counts = np.unique(visible, axis=0, return_counts=True)
+            out[y, x, :3] = colours[int(np.argmax(counts))]
+            out[y, x, 3] = 255
+    return current_ink(Image.fromarray(out, "RGBA"))
+
+def make_downsample_methods_sheet():
+    """Confronta tre metodi alla stessa altezza di gioco, senza cambiare gli originali."""
+    font = ImageFont.load_default()
+    files = ["hero_paolo/idle.png", "hero_mattia/idle.png",
+             "hero_daniele/idle.png", "hero_marco/idle.png"]
+    methods = [
+        ("BOX — PIPELINE ATTUALE", downsample_box),
+        ("NEAREST — PIXEL NETTI", downsample_nearest),
+        ("DOMINANTE — PALETTE ORIGINALE", downsample_dominant),
+    ]
+    panel_w, row_h, label_w = 205, 215, 150
+    sheet = Image.new("RGB", (label_w + panel_w * len(methods), row_h * len(files)),
+                      (36, 38, 44))
+    draw = ImageDraw.Draw(sheet)
+    for j, (label, _) in enumerate(methods):
+        draw.text((label_w + j * panel_w + 6, 6), label, fill=(255, 230, 150), font=font)
+    for i, rel in enumerate(files):
+        path = ROOT / "estratti" / rel
+        if not path.exists():
+            continue
+        src = Image.open(path).convert("RGBA")
+        # L'eroe viene portato a 54 px di gioco x 1,5 pixel per pixel di gioco = 81 px.
+        h = max(1, int(round(54 * 1.5)))
+        scale = h / src.height
+        size = (max(1, int(round(src.width * scale))), h)
+        y = i * row_h
+        draw.text((8, y + 8), rel.replace("hero_", "").replace("/idle.png", ""),
+                  fill=(240, 240, 240), font=font)
+        for j, (_, fn) in enumerate(methods):
+            result = fn(src, size)
+            show = result.resize((result.width * 2, result.height * 2),
+                                 Image.Resampling.NEAREST)
+            bg = checker(show.size).convert("RGBA")
+            bg.alpha_composite(show)
+            x = label_w + j * panel_w + 6
+            sheet.paste(bg.convert("RGB"), (x, y + 32))
+    sheet.save(OUT / "hero_downsample_methods.png", optimize=True)
+
 def main():
     make_sprite_sheet()
     make_background_sheet()
     make_crate_scale_preview()
+    make_downsample_methods_sheet()
     print(f"Anteprime non distruttive generate in {OUT}/")
 
 if __name__ == "__main__":
