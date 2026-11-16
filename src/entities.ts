@@ -539,6 +539,7 @@ export class Ettore extends BossBase {
   fase2 = false;
   private colpi = 0; private mira: { x: number; y: number; ang: number } | null = null;
   private camminaT = 1.5;
+  private avvisoMira = false;
   onFase2?: () => void;
   constructor(w: World, x: number) {
     super(w, 'boss_ettore', x, ETTORE.vita);
@@ -579,14 +580,15 @@ export class Ettore extends BossBase {
         this.x = Phaser.Math.Clamp(this.x + v * vel * dt, lim.sx + 40, lim.dx - 40);
         this.disegna(v !== 0 ? `walk_0${(Math.floor(now * 6 * vel) % 4) + 1}` : 'idle');
         this.camminaT -= dt * vel;
-        if (this.camminaT <= 0) { this.st = 'mira'; this.t = 0; this.colpi = 0; this.mira = null; }
+        if (this.camminaT <= 0) { this.st = 'mira'; this.t = 0; this.colpi = 0; this.mira = null; this.avvisoMira = false; }
         break;
       }
       case 'mira': {
         // Il segnale parte all'inizio di OGNI preparazione, prima che Ettore blocchi la mira.
         // In fase 2 il preavviso resta leggibile anche con il moltiplicatore di velocità.
         const durata = this.fase2 ? 0.9 : (this.colpi === 0 ? 0.95 : 0.6);
-        if (this.t < 0.05) {
+        if (!this.avvisoMira) {
+          this.avvisoMira = true;
           this.w.testo(this.x, this.y - 126, '!', '#ffe066');
           sfx('allarme');
         }
@@ -607,7 +609,7 @@ export class Ettore extends BossBase {
         if (this.t > 0.45) {
           // Fase 1: due scariche. Fase 2: tre, per una vera escalation del boss.
           const scaricheMassime = this.fase2 ? 3 : 2;
-          if (this.colpi < scaricheMassime) { this.st = 'mira'; this.t = 0; this.mira = null; }
+          if (this.colpi < scaricheMassime) { this.st = 'mira'; this.t = 0; this.mira = null; this.avvisoMira = false; }
           else { this.st = 'ricarica'; this.t = 0; this.w.testo(this.x, this.y - 128, 'RICARICA!', '#ffe066'); voce('ettore_borbottio', 9, 0.8); }
         }
         break;
