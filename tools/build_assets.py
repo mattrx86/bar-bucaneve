@@ -200,8 +200,9 @@ def montagne_in_lontananza(image, dens=1.0):
     lum = (r * 30 + g * 59 + b * 11) / 100
     # Vegetazione scura nella fascia alta: esclude pietra, legno, vetri e illuminazione.
     vegetazione = (
-        (yy < int(158 * dens)) & (lum < 142) &
-        (g >= r - 1) & (g > b - 13) & (r < 112) & (b < 124)
+        (yy < int(96 * dens)) & (lum < 108) &
+        (g > r + 9) & (g > b + 2) &
+        (r < 68) & (g < 100) & (b < 78)
     )
 
     def cresta(base, ampiezze, passo):
@@ -230,12 +231,12 @@ def montagne_in_lontananza(image, dens=1.0):
         return np.asarray(fill, dtype=np.uint8) > 0, np.asarray(edge, dtype=np.uint8) > 0
 
     # Due profili sfalsati: la cresta chiara è più lontana, quella scura più vicina.
-    back, back_edge = cresta(117, [(53, 60, 43), (58, 46, 54), (47, 63, 40), (55, 49, 59)], 265)
-    near, near_edge = cresta(132, [(34, 39, 27), (37, 29, 35), (30, 41, 25), (35, 31, 39)], 315)
+    back, back_edge = cresta(98, [(43, 50, 36), (48, 39, 45), (39, 52, 34), (46, 42, 49)], 265)
+    near, near_edge = cresta(106, [(23, 29, 18), (27, 20, 25), (21, 31, 17), (25, 22, 29)], 315)
     out = arr.astype(float)
     for mask, col, alpha in (
-        (back & vegetazione, np.array([77, 101, 128], dtype=float), 0.66),
-        (near & vegetazione, np.array([57, 79, 103], dtype=float), 0.62),
+        (back & vegetazione, np.array([77, 101, 128], dtype=float), 0.62),
+        (near & vegetazione, np.array([57, 79, 103], dtype=float), 0.56),
     ):
         out[mask] = out[mask] * (1.0 - alpha) + col * alpha
     # Un filo freddo lungo i crinali rende leggibile la silhouette anche a scala di gioco.
