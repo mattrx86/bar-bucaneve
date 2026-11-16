@@ -8,13 +8,15 @@ sys.path.insert(0, os.path.dirname(__file__))
 from sheet import load_mask, peel, components, ink, estrai_o_ritocca
 
 def to_small(img, s):
+    """Riduce senza interpolare i colori: pixel netti e alpha binario."""
     h, w = img.shape[:2]
     nh, nw = max(1, round(h * s)), max(1, round(w * s))
-    pre = img.astype(float); pre[..., :3] *= pre[..., 3:4] / 255
-    r = np.array(Image.fromarray(pre.clip(0, 255).astype(np.uint8), 'RGBA').resize((nw, nh), Image.BOX)).astype(float)
-    a = r[..., 3]
-    rgb = np.where(a[..., None] > 0, r[..., :3] * 255 / np.maximum(a[..., None], 1), 0)
-    return np.dstack([rgb.clip(0, 255), (a > 120) * 255]).astype(np.uint8)
+    rgba = Image.fromarray(img.astype(np.uint8), 'RGBA').resize((nw, nh), Image.Resampling.NEAREST)
+    out = np.array(rgba, dtype=np.uint8)
+    visible = out[..., 3] > 120
+    out[..., 3] = visible.astype(np.uint8) * 255
+    out[~visible, :3] = 0
+    return out
 
 def b64png(im):
     if im.mode == 'RGBA': im = im.quantize(256, method=Image.Quantize.FASTOCTREE, dither=Image.Dither.NONE)
@@ -94,10 +96,10 @@ for nuovo, (src, pitch, vel, eff) in DERIVATE.items():
 # ---------------------------------------------------------------------------
 RIGHE_ARMI = [(16, 177), (196, 380), (419, 507), (553, 613), (625, 814), (852, 975)]
 ELEMENTI = [
-    ('cassa_fucile', 0, 46, 279, 22, 1), ('cassa_fiamma', 0, 350, 587, 22, 1), ('cassa_bombe', 0, 655, 888, 22, 1),
-    ('cassa_lanciarazzi', 0, 951, 1187, 22, 1), ('cassa_mitragliatrice', 0, 1258, 1492, 22, 1),
-    ('apre_1', 1, 56, 243, 22, 1), ('apre_2', 1, 288, 512, 26, 1), ('apre_3', 1, 544, 731, 22, 1),
-    ('apre_4', 1, 787, 981, 23, 1), ('apre_5', 1, 1044, 1227, 22, 1), ('apre_6', 1, 1297, 1487, 22, 1),
+    ('cassa_fucile', 0, 46, 279, 30, 1), ('cassa_fiamma', 0, 350, 587, 30, 1), ('cassa_bombe', 0, 655, 888, 30, 1),
+    ('cassa_lanciarazzi', 0, 951, 1187, 30, 1), ('cassa_mitragliatrice', 0, 1258, 1492, 30, 1),
+    ('apre_1', 1, 56, 243, 30, 1), ('apre_2', 1, 288, 512, 30, 1), ('apre_3', 1, 544, 731, 30, 1),
+    ('apre_4', 1, 787, 981, 30, 1), ('apre_5', 1, 1044, 1227, 30, 1), ('apre_6', 1, 1297, 1487, 30, 1),
     ('icona_mitragliatrice', 2, 37, 128, 12, 0), ('icona_pistola', 2, 160, 259, 13, 0), ('icona_fiamma', 2, 289, 401, 15, 0),
     ('icona_fucile', 2, 432, 557, 17, 0), ('icona_bomba', 2, 587, 683, 13, 0), ('icona_lanciarazzi', 2, 713, 839, 17, 0),
     ('icona_munizioni', 2, 871, 972, 14, 0), ('icona_cura', 2, 1003, 1099, 13, 0),
