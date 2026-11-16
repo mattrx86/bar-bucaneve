@@ -4,38 +4,44 @@ Stato: candidato da verificare in build e gameplay. Non unire prima della revisi
 
 ## Vincolo di contenuto
 
-Questa modifica non cambia i disegni e non rigenera personaggi, nemici, boss, fondali o oggetti. I PNG originali in `grafica/` restano invariati. I ritocchi manuali restano opzionali in `grafica/ritocchi/` e devono rispettare la tela degli estratti.
+I PNG originali in `grafica/` non vengono ridisegnati né sovrascritti. La pipeline lavora sui fotogrammi estratti e ne migliora esclusivamente il trattamento dei bordi: fattezze, capelli, volto, abiti, accessori, armi, palette interna, posa, proporzioni e silhouette originale restano quelli del disegno sorgente. Non vengono inserite nuove parti nel personaggio.
 
 ## Modifiche della pipeline
 
-### Sprite, oggetti ed effetti
+### Sprite di personaggi, nemici e boss
+- Dopo la riduzione a pixel netti, viene aggiunto un contorno esterno nero molto scuro (1 pixel della texture), con profilo a gradini tramite una dilatazione a 4-neighbour.
+- La funzione `peel()` continua a rimuovere gli aloni chiari/sporchi presenti sul bordo dei fogli originali; il nuovo contorno chiude la silhouette dopo il ridimensionamento.
+- Il trattamento è applicato a tutti gli sprite riconosciuti dalla pipeline: eroi, gelatai, ubriachi, Giova ed Ettore.
+- Il contorno è esterno: non sostituisce i pixel interni e non cambia occhi, capelli, lineamenti, vestiti, accessori o armi.
+- Le dimensioni delle celle, la baseline, il pivot, l'ordine e il numero dei fotogrammi restano gestiti dalla pipeline originale.
+
+### Sprite e oggetti: ridimensionamento
 - Sostituito il ridimensionamento `BOX` con `NEAREST` nelle funzioni `to_small()` di `tools/build_assets.py` e `tools/build_extra.py`.
 - La dimensione di output resta quella calcolata dalla pipeline.
-- La maschera alpha viene binarizzata alla soglia già usata dal processo.
-- I colori vengono selezionati dai pixel sorgente; non si introducono colori mediati dall'interpolazione.
-- Il post-trattamento `ink()` esistente resta invariato.
-- Nessuna modifica a tela, pivot, baseline, frame, ordine delle pose o silhouette.
+- La maschera alpha viene binarizzata; non si introducono colori mediati dall'interpolazione.
+- Le casse arma mantengono larghezze uniformate a 30 pixel logici, compresi i frame di apertura.
 
 ### Fondali
 Prima del ridimensionamento, `tools/build_assets.py` applica un grading leggero ai soli fondali:
-- saturazione: 0,91;
-- contrasto: 0,94;
-- luminosità: 0,98.
+- saturazione: 0,84;
+- contrasto: 0,92;
+- luminosità: 0,99.
 
-Non viene applicata trasparenza alpha globale, blur o modifica della composizione. Il ridimensionamento LANCZOS e la codifica JPEG del fondale restano invariati.
-
-### Casse delle armi
-In `tools/build_extra.py` la larghezza di output delle cinque casse arma e dei sei frame di apertura passa a 30 pixel logici (da 22–26). I frame di apertura sono portati alla stessa larghezza per evitare salti di scala durante l'animazione. Nessuna modifica a munizioni, icone, proiettili o collisioni.
+Il grading attenua leggermente i colori per separare i personaggi dal fondale. Non viene applicato blur o trasparenza alpha globale; la composizione, gli edifici e gli oggetti disegnati restano invariati.
 
 ## Cosa verificare
 
-1. Confrontare i quattro eroi originali alla scala effettiva di gioco.
-2. Verificare che le animazioni non presentino flicker o variazioni indesiderate tra frame.
-3. Controllare i punti di uscita dei proiettili: il ridimensionamento non deve spostare la posa o la muzzle map.
-4. Verificare che le casse ingrandite non coprano eccessivamente i personaggi e restino allineate al terreno.
-5. Confrontare i fondali graded con gli originali e confermare che il livello di slavatura sia sufficiente ma non eccessivo.
+1. Confrontare Mattia, Marco, Daniele e Paolo con i sorgenti per confermare identità e dettagli.
+2. Verificare tutte le pose dei gelatai: contorno continuo, nessuno sporco residuo, nessun pixel isolato indesiderato.
+3. Controllare che il profilo a gradini non faccia variare lo spessore percepito tra i fotogrammi.
+4. Verificare baseline, pivot e punti di uscita dei proiettili.
+5. Confrontare il fondale graded con l'originale alla scala effettiva di gioco.
 6. Eseguire build e test di gioco prima del merge.
+
+## Limiti noti
+
+I fondali della strada sono immagini appiattite: edifici, vegetazione e sfondo non sono forniti come livelli separati. Per questo questa versione li desatura ma non inserisce ancora una parallasse montana automatica, che richiederebbe una separazione affidabile dei piani per non disegnare le montagne sopra i tetti o danneggiare i dettagli originali.
 
 ## Reversibilità
 
-Per annullare le modifiche di stile basta ripristinare le versioni precedenti di `to_small()`, rimuovere il grading in `pezzo()` e riportare le larghezze delle casse ai valori originali. I PNG sorgente non sono mai stati sovrascritti.
+La modifica dello stile è confinata agli script di generazione. Per tornare al risultato precedente basta ripristinare `tools/build_assets.py` e `tools/build_extra.py`; i PNG originali in `grafica/` non sono stati sovrascritti.
