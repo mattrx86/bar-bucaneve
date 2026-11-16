@@ -533,12 +533,10 @@ export class Ettore extends BossBase {
   nome = ETTORE.nome; sottotitolo = ETTORE.sottotitolo; punti = ETTORE.punti;
   fase2 = false;
   private colpi = 0; private mira: { x: number; y: number; ang: number } | null = null;
-  private linea: Phaser.GameObjects.Graphics;
   private camminaT = 1.5;
   onFase2?: () => void;
   constructor(w: World, x: number) {
     super(w, 'boss_ettore', x, ETTORE.vita);
-    this.linea = w.sc.add.graphics().setDepth(47);
   }
   box(): Phaser.Geom.Rectangle { return new Phaser.Geom.Rectangle(this.x - 26, this.y - 108, 52, 108); }
   moltiplicatore(): number { return this.st === 'ricarica' ? 1.6 : 1; }
@@ -551,7 +549,6 @@ export class Ettore extends BossBase {
   update(dt: number): void {
     const p = this.w.giocatore; const now = this.w.sc.time.now / 1000;
     this.lampo = Math.max(0, this.lampo - dt);
-    this.linea.clear();
     if (this.morto) {
       this.mortoT += dt;
       const f = this.mortoT < 0.2 ? 'hit' : this.mortoT < 0.5 ? 'death_01' : this.mortoT < 0.8 ? 'death_02' : this.mortoT < 1.1 ? 'death_03' : 'death_04';
@@ -581,7 +578,7 @@ export class Ettore extends BossBase {
         break;
       }
       case 'mira': {
-        // alza la doppietta, poi si blocca la direzione: la linea rossa mostra dove sparerà
+        // Alza la doppietta e blocca la direzione: la posa e il segnale ! anticipano il colpo.
         const durata = this.colpi === 0 ? 0.95 : 0.6;
         this.guardaDx = dx > 0;
         this.disegna(this.t < 0.25 ? 'tele_01' : 'tele_02');
@@ -591,14 +588,9 @@ export class Ettore extends BossBase {
           const lim2 = this.guardaDx ? [-0.45, 0.35] : [Math.PI - 0.35, Math.PI + 0.45];
           let a = ang; if (!this.guardaDx && a < 0) a += Math.PI * 2;
           this.mira = { ...b, ang: Phaser.Math.Clamp(a, lim2[0], lim2[1]) };
+          // Segnale arcade leggibile senza laser: posa di mira + ! caldo sopra Ettore.
+          this.w.testo(this.x, this.y - 126, '!', '#ffe066');
           sfx('allarme');
-        }
-        if (this.mira) {
-          const lampeggia = Math.floor(now * 16) % 2 === 0 || this.t < durata - 0.25;
-          if (lampeggia) {
-            this.linea.lineStyle(1, 0xff3030, 0.85);
-            this.linea.lineBetween(this.mira.x, this.mira.y, this.mira.x + Math.cos(this.mira.ang) * 400, this.mira.y + Math.sin(this.mira.ang) * 400);
-          }
         }
         if (this.t >= durata && this.mira) this.spara();
         break;
@@ -606,8 +598,10 @@ export class Ettore extends BossBase {
       case 'sparo':
         this.disegna(this.t < 0.12 ? 'shoot_01' : 'shoot_02');
         if (this.t > 0.45) {
-          if (this.colpi < 2) { this.st = 'mira'; this.t = 0.25; this.mira = null; }
-          else { this.st = 'ricarica'; this.t = 0; this.w.testo(this.x, this.y - 128, 'RICARICA!', '#80ff80'); voce('ettore_borbottio', 9, 0.8); }
+          // Fase 1: due scariche. Fase 2: tre, per una vera escalation del boss.
+          const scaricheMassime = this.fase2 ? 3 : 2;
+          if (this.colpi < scaricheMassime) { this.st = 'mira'; this.t = 0.25; this.mira = null; }
+          else { this.st = 'ricarica'; this.t = 0; this.w.testo(this.x, this.y - 128, 'RICARICA!', '#ffe066'); voce('ettore_borbottio', 9, 0.8); }
         }
         break;
       case 'ricarica':
@@ -620,10 +614,10 @@ export class Ettore extends BossBase {
   private spara(): void {
     if (!this.mira) return;
     this.colpi++; this.st = 'sparo'; this.t = 0;
-    const n = this.fase2 ? 7 : 5, spread = this.fase2 ? 9 : 6;
+    const n = this.fase2 ? 8 : 5, spread = this.fase2 ? 10 : 6;
     for (let i = 0; i < n; i++) {
       const a = this.mira.ang + ((i / (n - 1)) * 2 - 1) * spread * R;
-      this.w.sparaProiettile({ x: this.mira.x, y: this.mira.y, ang: a, speed: 270, danno: ETTORE.danno, tex: 'pellet', ostile: true, gittata: 420 });
+      this.w.sparaProiettile({ x: this.mira.x, y: this.mira.y, ang: a, speed: this.fase2 ? 285 : 270, danno: ETTORE.danno, tex: 'pellet', ostile: true, gittata: 420 });
     }
     const fl = img(this.w.sc, this.mira.x, this.mira.y, 'lampo_3', 'flash0', 1.3).setOrigin(0, 0.5).setDepth(61).setRotation(this.mira.ang);
     this.w.sc.tweens.add({ targets: fl, alpha: 0, duration: 90, onComplete: () => fl.destroy() });
