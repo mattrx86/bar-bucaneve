@@ -103,6 +103,7 @@ def make_sprite_sheet():
     cell_w, cell_h, label_h = 560, 255, 26
     existing = []
     report = []
+    changes_by_file = {}
     for rel in SAMPLES:
         path = ROOT / "estratti" / rel
         if not path.exists():
@@ -126,11 +127,12 @@ def make_sprite_sheet():
             )),
             "canvas_identical": original.size == candidate.size,
         })
-        existing.append((rel, original, candidate, mild))
+        existing.append((rel, original, candidate))
+        changes_by_file[rel] = count
     rows = max(1, len(existing))
     sheet = Image.new("RGB", (cell_w, rows * cell_h), (38, 40, 46))
     draw = ImageDraw.Draw(sheet)
-    for i, (rel, original, candidate, mild) in enumerate(existing):
+    for i, (rel, original, candidate) in enumerate(existing):
         y = i * cell_h
         draw.text((8, y + 6), rel, fill=(255, 230, 150), font=font)
         draw.text((8, y + 34), "ORIGINALE", fill=(240, 240, 240), font=font)
@@ -138,9 +140,8 @@ def make_sprite_sheet():
         max_w, max_h = 260, 190
         paste_sprite(sheet, original, 8, y + 52, max_w, max_h)
         paste_sprite(sheet, candidate, cell_w // 2 + 8, y + 52, max_w, max_h)
-        if rel.startswith("armi/"):
-            draw.text((8, y + 235), f"Pixel di bordo modificati: {report[i].get('edge_pixels_changed_moderate', 0)}",
-                      fill=(190, 210, 220), font=font)
+        draw.text((8, y + 235), f"Pixel di bordo ritoccati nella prova: {changes_by_file[rel]}",
+                  fill=(190, 210, 220), font=font)
     sheet.save(OUT / "sprites_before_after.png", optimize=True)
     (OUT / "sprites_report.json").write_text(json.dumps(report, indent=2), encoding="utf-8")
 
