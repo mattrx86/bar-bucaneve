@@ -40,7 +40,21 @@ for f in cartella('livello1-strada', 'gelatai'):
     ENT.append(('vil_' + os.path.splitext(os.path.basename(f))[0].lower(), f, modo(f), VIL_ROWS, 'walk_01', 56, 12))
 for f in cartella('livello1-strada', 'ubriachi'):
     ENT.append(('vil_' + os.path.splitext(os.path.basename(f))[0].lower(), f, modo(f), VIL_ROWS, 'walk_01', 60, 12))
-_g = J('livello2-bucaneve', 'boss-giova', 'giova.png'); ENT.append(('boss_giova', _g, modo(_g), VIL_ROWS, 'walk_01', 76, 12))
+_g = J('livello2-bucaneve', 'boss-giova', 'giova.png')
+# Compatibilità con il percorso legacy: il foglio Giova attualmente presente in main
+# è in grafica/livello2-bucaneve/giova.png. Preferiamo il percorso canonico quando
+# esiste, ma non blocchiamo la build se il file è ancora nella posizione legacy.
+if not os.path.isfile(_g):
+    _giova_legacy = J('livello2-bucaneve', 'giova.png')
+    if os.path.isfile(_giova_legacy):
+        _g = _giova_legacy
+    else:
+        raise FileNotFoundError(
+            'Foglio Giova non trovato: atteso '
+            'grafica/livello2-bucaneve/boss-giova/giova.png '
+            'oppure grafica/livello2-bucaneve/giova.png'
+        )
+ENT.append(('boss_giova', _g, modo(_g), VIL_ROWS, 'walk_01', 76, 12))
 _e = J('livello3-cantina', 'boss-ettore', 'pose.png'); ENT.append(('boss_ettore', _e, modo(_e), ETT_ROWS, 'walk_01', 120, 4))
 
 def to_small(img, s):
