@@ -2,7 +2,7 @@
 Uso: python3 tools/build_assets.py grafica src/content/sprites.ts <cartella_anteprime>"""
 import sys, os, io, json, base64, glob
 import numpy as np
-from PIL import Image, ImageEnhance
+from PIL import Image, ImageEnhance, ImageDraw
 from scipy import ndimage as nd
 sys.path.insert(0, os.path.dirname(__file__))
 from sheet import estrai_o_ritocca, load_mask, peel, peel_dark, outline, despeckle, components, rows, ink
@@ -87,24 +87,18 @@ for key, path, mode, ROWS, refpose, target, dil in ENT:
     d = DMAX  # stessa grandezza di pixel per tutti
     s = target * d / rh
     fr = {}
+    is_character = key.startswith(('hero_', 'vil_', 'boss_'))
     for n, im in raw.items():
         sm = to_small(im, s)
-        # Anteprima isolata: confronto originale/contorno nero per la sola posa idle di Mattia.
-        # Non modifica sm e quindi non cambia gli sprite inclusi nel gioco.
-        if key == 'hero_mattia' and n == 'idle':
-            base = np.pad(sm.copy(), ((1, 1), (1, 1), (0, 0)), constant_values=0)
-            edged = outline(base.copy(), col=(6, 6, 8))
-            scale = 5
-            left = Image.fromarray(base).resize((base.shape[1] * scale, base.shape[0] * scale), Image.Resampling.NEAREST)
-            right = Image.fromarray(edged).resize((edged.shape[1] * scale, edged.shape[0] * scale), Image.Resampling.NEAREST)
-            gap = 20
-            compare = Image.new('RGBA', (left.width + gap + right.width, max(left.height, right.height)), (70, 78, 92, 255))
-            compare.alpha_composite(left, (0, 0))
-            compare.alpha_composite(right, (left.width + gap, 0))
-            compare.save(f'{PREV}/hero_mattia_idle_outline_test.png')
-        if mode != 'black': sm = ink(sm, erodi=d >= 2)
+        if is_character and mode != 'black':
+            # Contorno esterno nero netto a gradini: preserva pixel interni, palette e disegno.
+            # Un pixel trasparente di margine evita di tagliare il bordo sui lati della posa.
+            sm = np.pad(sm, ((1, 1), (1, 1), (0, 0)), constant_values=0)
+            sm = outline(sm, col=(6, 6, 8))
+        elif mode != 'black':
+            sm = ink(sm, erodi=d >= 2)
         if mode == 'black':
-            sm = despeckle(sm, minpx=int(4 * d * d)); sm = np.pad(sm, ((1, 1), (1, 1), (0, 0))); sm = outline(sm)
+            sm = despeckle(sm, minpx=int(4 * d * d)); sm = np.pad(sm, ((1, 1), (1, 1), (0, 0))); sm = outline(sm, col=(6, 6, 8))
         m = sm[..., 3] > 0
         ys, xs = np.where(m)
         sm = sm[ys.min():ys.max() + 1, xs.min():xs.max() + 1]; m = sm[..., 3] > 0
@@ -179,16 +173,68 @@ def prepara(path, tipo):
 
 def pezzo(path, tipo, S, dens):
     im, piede = prepara(path, tipo)
-    # Grading uniforme e delicato: fondale un po' slavato, senza blur e senza alpha globale.
+    # Grading da fondale: meno saturo e leggermente meno contrastato dei personaggi.
     pil = Image.fromarray(im)
-    pil = ImageEnhance.Color(pil).enhance(0.91)
-    pil = ImageEnhance.Contrast(pil).enhance(0.94)
-    pil = ImageEnhance.Brightness(pil).enhance(0.98)
+    pil = ImageEnhance.Color(pil).enhance(0.84)
+    pil = ImageEnhance.Contrast(pil).enhance(0.92)
+    pil = ImageEnhance.Brightness(pil).enhance(0.99)
     pil = pil.resize((round(pil.width * S * dens), round(pil.height * S * dens)), Image.LANCZOS)
     top = int(round((piede * S - GROUND) * dens))
     if top < 0:  # immagine troppo bassa: si aggiunge cielo ripetendo la prima riga
         pil2 = Image.new('RGB', (pil.width, pil.height - top)); pil2.paste(pil.crop((0, 0, pil.width, 1)).resize((pil.width, -top)), (0, 0)); pil2.paste(pil, (0, -top)); pil = pil2; top = 0
     return pil.crop((0, top, pil.width, top + int(round(VH * dens))))
+
+def montagne_in_lontananza(image, dens=1.0):
+    """Aggiunge due creste alpine fredde nelle sole zone di vegetazione lontana.
+
+    Il fondale originale e le facciate restano intatti: la maschera limita la tinta alle
+    aree verdi scure della fascia alta. Le creste sono rasterizzate sulla griglia pixel.
+    """
+    arr = np.array(image.convert('RGB'), dtype=np.uint8)
+    h, w = arr.shape[:2]
+    if h < int(130 * dens) or w < int(150 * dens):
+        return image
+
+    yy, xx = np.mgrid[0:h, 0:w]
+    r, g, b = arr[..., 0].astype(int), arr[..., 1].astype(int), arr[..., 2].astype(int)
+    lum = (r * 30 + g * 59 + b * 11) / 100
+    vegetazione = (yy < int(138 * dens)) & (g > r + 5) & (g > b + 2) & (lum < 138)
+
+    def cresta(base, ampiezze, passo):
+        m = Image.new('L', (w, h), 0)
+        draw = ImageDraw.Draw(m)
+        punti = [(0, int(base * dens))]
+        i = 0
+        x = 0
+        while x < w:
+            span = int(passo * dens)
+            # Tre cime sfalsate per segmento: profilo irregolare, non una sagoma triangolare ripetuta.
+            a1, a2, a3 = ampiezze[i % len(ampiezze)]
+            punti.extend([
+                (min(w, x + int(span * 0.20)), int((base - a1 * 0.62) * dens)),
+                (min(w, x + int(span * 0.43)), int((base - a1) * dens)),
+                (min(w, x + int(span * 0.62)), int((base - a2 * 0.48) * dens)),
+                (min(w, x + int(span * 0.79)), int((base - a2) * dens)),
+                (min(w, x + int(span * 0.91)), int((base - a3 * 0.55) * dens)),
+                (min(w, x + span), int(base * dens)),
+            ])
+            x += span
+            i += 1
+        polygon = punti + [(w, h), (0, h)]
+        draw.polygon(polygon, fill=255)
+        return np.asarray(m, dtype=np.uint8) > 0
+
+    # Monti lontani: blu ardesia, con creste più chiare; rilievo anteriore più scuro e basso.
+    back = cresta(108, [(44, 52, 36), (50, 38, 46), (40, 55, 34), (47, 42, 51)], 260)
+    near = cresta(119, [(28, 34, 22), (31, 23, 30), (25, 35, 21), (29, 26, 34)], 315)
+    out = arr.astype(float)
+    for mask, col, alpha in (
+        (back & vegetazione, np.array([79, 101, 124], dtype=float), 0.34),
+        (near & vegetazione, np.array([61, 82, 103], dtype=float), 0.26),
+    ):
+        out[mask] = out[mask] * (1.0 - alpha) + col * alpha
+    return Image.fromarray(out.clip(0, 255).astype(np.uint8), 'RGB')
+
 
 files_strada = cartella('livello1-strada', 'fondali')
 _b = J('livello2-bucaneve', 'fondale', 'esterno.png')
@@ -212,7 +258,8 @@ for n, p in enumerate(pieces[1:], 1):
     strip = np.concatenate([strip[:, :ia - BL], strip[:, ia - BL:ia] * (1 - t) + q[:, ib - BL:ib] * t, q[:, ib:]], 1)
     seams.append(ia - BL // 2); cuts.append((ia, ib))
     if n == len(pieces) - 1: bar_x = ia - ib  # inizio (virtuale) del pezzo del bar
-street = Image.fromarray(strip.clip(0, 255).astype(np.uint8))
+street_prima_montagne = Image.fromarray(strip.clip(0, 255).astype(np.uint8))
+street = montagne_in_lontananza(street_prima_montagne, 1.0)
 # stessa strada alla densita' finale, con gli stessi tagli
 DB = DMAX
 hp = [np.array(pezzo(f, 'strada', S_STREET, DB)).astype(float) for f in files_strada + [_b]]
@@ -221,7 +268,8 @@ for q, (ia, ib) in zip(hp[1:], cuts):
     a_, b_ = int(round(ia * DB)), int(round(ib * DB))
     t = np.linspace(0, 1, bl)[None, :, None]
     hs = np.concatenate([hs[:, :a_ - bl], hs[:, a_ - bl:a_] * (1 - t) + q[:, b_ - bl:b_] * t, q[:, b_:]], 1)
-hstreet = Image.fromarray(hs.clip(0, 255).astype(np.uint8))
+hstreet = montagne_in_lontananza(Image.fromarray(hs.clip(0, 255).astype(np.uint8)), DB)
+street_prima_montagne.save(f'{PREV}/fondale_strada_prima_montagne.png')
 parts = []; P = int(512 * DB)
 for x in range(0, hstreet.width, P):
     parts.append(b64jpg(hstreet.crop((x, 0, min(hstreet.width, x + P), hstreet.height))))
