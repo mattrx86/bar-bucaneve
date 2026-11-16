@@ -89,6 +89,19 @@ for key, path, mode, ROWS, refpose, target, dil in ENT:
     fr = {}
     for n, im in raw.items():
         sm = to_small(im, s)
+        # Anteprima isolata: confronto originale/contorno nero per la sola posa idle di Mattia.
+        # Non modifica sm e quindi non cambia gli sprite inclusi nel gioco.
+        if key == 'hero_mattia' and n == 'idle':
+            base = np.pad(sm.copy(), ((1, 1), (1, 1), (0, 0)), constant_values=0)
+            edged = outline(base.copy(), col=(6, 6, 8))
+            scale = 5
+            left = Image.fromarray(base).resize((base.shape[1] * scale, base.shape[0] * scale), Image.Resampling.NEAREST)
+            right = Image.fromarray(edged).resize((edged.shape[1] * scale, edged.shape[0] * scale), Image.Resampling.NEAREST)
+            gap = 20
+            compare = Image.new('RGBA', (left.width + gap + right.width, max(left.height, right.height)), (70, 78, 92, 255))
+            compare.alpha_composite(left, (0, 0))
+            compare.alpha_composite(right, (left.width + gap, 0))
+            compare.save(f'{PREV}/hero_mattia_idle_outline_test.png')
         if mode != 'black': sm = ink(sm, erodi=d >= 2)
         if mode == 'black':
             sm = despeckle(sm, minpx=int(4 * d * d)); sm = np.pad(sm, ((1, 1), (1, 1), (0, 0))); sm = outline(sm)
