@@ -1,0 +1,42 @@
+name: Pixel pipeline build
+on:
+  push:
+    branches:
+      - art-cohesion/pixel-pipeline-v1
+  pull_request:
+    branches:
+      - main
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install native image/audio dependency
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg
+      - name: Install Python dependencies
+        run: python -m pip install --upgrade pillow numpy scipy
+      - name: Install Node dependencies
+        run: npm ci
+      - name: Rebuild game from original graphics
+        run: sh tools/build_all.sh
+      - name: Collect build and graphic previews
+        run: |
+          mkdir -p build-artifact
+          cp bar-bucaneve.html build-artifact/
+          cp -R anteprime build-artifact/
+      - uses: actions/upload-artifact@v4
+        with:
+          name: buca-slug-pixel-pipeline-build
+          path: build-artifact/
+          if-no-files-found: error
