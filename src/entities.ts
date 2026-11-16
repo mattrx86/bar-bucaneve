@@ -420,6 +420,7 @@ export abstract class BossBase {
   x: number; y = GROUND_Y; guardaDx = false;
   vita: number; vitaMax: number; morto = false; mortoT = 0; attivo = false;
   protected lampo = 0; protected st = 'entra'; protected t = 0;
+  private ultimoLampo = -Infinity;
   abstract nome: string; abstract sottotitolo: string; abstract punti: number;
   onMorte?: () => void;
   constructor(public w: World, public sheet: string, x: number, vita: number) {
@@ -432,7 +433,11 @@ export abstract class BossBase {
   moltiplicatore(): number { return 1; }
   danno(n: number): void {
     if (this.morto || !this.attivo) return;
-    this.vita -= n * this.moltiplicatore(); this.lampo = 0.05; sfx('bossColpito'); this.w.hitstop(0.012);
+    this.vita -= n * this.moltiplicatore();
+    // Raffreddamento del flash: il fuoco continuo non deve trasformare il boss in una sagoma bianca.
+    const ora = this.w.sc.time.now;
+    if (ora - this.ultimoLampo >= 150) { this.lampo = 0.055; this.ultimoLampo = ora; }
+    sfx('bossColpito'); this.w.hitstop(0.012);
     if (this.vita <= 0) { this.vita = 0; this.morto = true; this.mortoT = 0; sfx('bossMorto'); this.w.sc.time.delayedCall(900, () => this.w.polvere?.(this.x, true)); this.w.hitstop(0.25); this.w.punti(Math.round(this.punti * this.w.diff.punti), this.x, this.y - 90); this.w.scuoti(500, 0.012); this.onMorte?.(); }
   }
   protected disegna(posa: string): void {
@@ -578,8 +583,13 @@ export class Ettore extends BossBase {
         break;
       }
       case 'mira': {
-        // Alza la doppietta e blocca la direzione: la posa e il segnale ! anticipano il colpo.
-        const durata = this.colpi === 0 ? 0.95 : 0.6;
+        // Il segnale parte all'inizio di OGNI preparazione, prima che Ettore blocchi la mira.
+        // In fase 2 il preavviso resta leggibile anche con il moltiplicatore di velocità.
+        const durata = this.fase2 ? 0.9 : (this.colpi === 0 ? 0.95 : 0.6);
+        if (this.t < 0.05) {
+          this.w.testo(this.x, this.y - 126, '!', '#ffe066');
+          sfx('allarme');
+        }
         this.guardaDx = dx > 0;
         this.disegna(this.t < 0.25 ? 'tele_01' : 'tele_02');
         const b = this.bocca();
@@ -588,9 +598,6 @@ export class Ettore extends BossBase {
           const lim2 = this.guardaDx ? [-0.45, 0.35] : [Math.PI - 0.35, Math.PI + 0.45];
           let a = ang; if (!this.guardaDx && a < 0) a += Math.PI * 2;
           this.mira = { ...b, ang: Phaser.Math.Clamp(a, lim2[0], lim2[1]) };
-          // Segnale arcade leggibile senza laser: posa di mira + ! caldo sopra Ettore.
-          this.w.testo(this.x, this.y - 126, '!', '#ffe066');
-          sfx('allarme');
         }
         if (this.t >= durata && this.mira) this.spara();
         break;
@@ -600,7 +607,7 @@ export class Ettore extends BossBase {
         if (this.t > 0.45) {
           // Fase 1: due scariche. Fase 2: tre, per una vera escalation del boss.
           const scaricheMassime = this.fase2 ? 3 : 2;
-          if (this.colpi < scaricheMassime) { this.st = 'mira'; this.t = 0.25; this.mira = null; }
+          if (this.colpi < scaricheMassime) { this.st = 'mira'; this.t = 0; this.mira = null; }
           else { this.st = 'ricarica'; this.t = 0; this.w.testo(this.x, this.y - 128, 'RICARICA!', '#ffe066'); voce('ettore_borbottio', 9, 0.8); }
         }
         break;
