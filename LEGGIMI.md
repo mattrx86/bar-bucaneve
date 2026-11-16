@@ -1,4 +1,4 @@
-# Bar Bucaneve - prototipo 0.7
+# Bar Bucaneve - prototipo 0.8
 
 Aprite `bar-bucaneve.html` con Chrome, Edge o Firefox (doppio clic). Non serve installare nulla, non serve internet.
 
@@ -63,3 +63,7 @@ Aprite `bar-bucaneve.html` con Chrome, Edge o Firefox (doppio clic). Non serve i
 - Musica come suoneria polifonica: le note dei vostri brani suonate da onde quadre a 3 voci + basso + tamburi, senza voce.
 - Più voci: gelatai e ubriachi parlano (voci ricavate cambiando il timbro delle registrazioni), la gelataia a volte lascia le bombe.
 - Proiettili del mitra, fiamme, vetri e schegge ora usano la vostra grafica.
+
+## Novità della 0.8
+- Musica della strada: il nuovo brano strumentale, reso suoneria polifonica 8 bit.
+- Ogni posa e ogni oggetto ritagliati e puliti sono in `estratti/`; per correggerne uno basta metterlo in `grafica/ritocchi/` (vedi `estratti/LEGGIMI.md`).

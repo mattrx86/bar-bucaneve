@@ -1,4 +1,4 @@
-# Bar Bucaneve - prototipo 0.7
+# Bar Bucaneve - prototipo 0.8
 
 Run'n'gun stile Metal Slug. Strada di Ponte Arche (gelatai e ubriachi) -> Giova davanti al Bar Bucaneve -> Ettore in cantina.
 
