@@ -2,7 +2,7 @@
 Uso: python3 tools/build_assets.py grafica src/content/sprites.ts <cartella_anteprime>"""
 import sys, os, io, json, base64, glob
 import numpy as np
-from PIL import Image, ImageEnhance, ImageDraw
+from PIL import Image, ImageEnhance
 from scipy import ndimage as nd
 sys.path.insert(0, os.path.dirname(__file__))
 from sheet import estrai_o_ritocca, load_mask, peel, peel_dark, outline, despeckle, components, rows, ink
@@ -184,65 +184,6 @@ def pezzo(path, tipo, S, dens):
         pil2 = Image.new('RGB', (pil.width, pil.height - top)); pil2.paste(pil.crop((0, 0, pil.width, 1)).resize((pil.width, -top)), (0, 0)); pil2.paste(pil, (0, -top)); pil = pil2; top = 0
     return pil.crop((0, top, pil.width, top + int(round(VH * dens))))
 
-def montagne_in_lontananza(image, dens=1.0):
-    """Doppia cresta alpina blu-grigia integrata nella vegetazione di fondo.
-
-    La maschera cromatica evita facciate, finestre, insegne e strada. Non è una
-    parallasse autonoma: è un intervento pittorico sullo skyline già appiattito.
-    """
-    arr = np.array(image.convert('RGB'), dtype=np.uint8)
-    h, w = arr.shape[:2]
-    if h < int(130 * dens) or w < int(150 * dens):
-        return image
-
-    yy, xx = np.mgrid[0:h, 0:w]
-    r, g, b = arr[..., 0].astype(int), arr[..., 1].astype(int), arr[..., 2].astype(int)
-    lum = (r * 30 + g * 59 + b * 11) / 100
-    # Vegetazione scura nella fascia alta: esclude pietra, legno, vetri e illuminazione.
-    vegetazione = (
-        (yy < int(96 * dens)) & (lum < 108) &
-        (g > r + 9) & (g > b + 2) &
-        (r < 68) & (g < 100) & (b < 78)
-    )
-
-    def cresta(base, ampiezze, passo):
-        fill = Image.new('L', (w, h), 0)
-        edge = Image.new('L', (w, h), 0)
-        df, de = ImageDraw.Draw(fill), ImageDraw.Draw(edge)
-        punti = [(0, int(base * dens))]
-        i = 0
-        x = 0
-        while x < w:
-            span = int(passo * dens)
-            a1, a2, a3 = ampiezze[i % len(ampiezze)]
-            punti.extend([
-                (min(w, x + int(span * 0.18)), int((base - a1 * 0.58) * dens)),
-                (min(w, x + int(span * 0.39)), int((base - a1) * dens)),
-                (min(w, x + int(span * 0.57)), int((base - a2 * 0.42) * dens)),
-                (min(w, x + int(span * 0.75)), int((base - a2) * dens)),
-                (min(w, x + int(span * 0.91)), int((base - a3 * 0.52) * dens)),
-                (min(w, x + span), int(base * dens)),
-            ])
-            x += span
-            i += 1
-        polygon = punti + [(w, h), (0, h)]
-        df.polygon(polygon, fill=255)
-        de.line(punti, fill=255, width=max(1, int(2 * dens)))
-        return np.asarray(fill, dtype=np.uint8) > 0, np.asarray(edge, dtype=np.uint8) > 0
-
-    # Due profili sfalsati: la cresta chiara è più lontana, quella scura più vicina.
-    back, back_edge = cresta(98, [(43, 50, 36), (48, 39, 45), (39, 52, 34), (46, 42, 49)], 265)
-    near, near_edge = cresta(106, [(23, 29, 18), (27, 20, 25), (21, 31, 17), (25, 22, 29)], 315)
-    out = arr.astype(float)
-    for mask, col, alpha in (
-        (back & vegetazione, np.array([77, 101, 128], dtype=float), 0.62),
-        (near & vegetazione, np.array([57, 79, 103], dtype=float), 0.56),
-    ):
-        out[mask] = out[mask] * (1.0 - alpha) + col * alpha
-    # Un filo freddo lungo i crinali rende leggibile la silhouette anche a scala di gioco.
-    for mask in (back_edge & vegetazione, near_edge & vegetazione):
-        out[mask] = out[mask] * 0.30 + np.array([142, 162, 181], dtype=float) * 0.70
-    return Image.fromarray(out.clip(0, 255).astype(np.uint8), 'RGB')
 
 files_strada = cartella('livello1-strada', 'fondali')
 _b = J('livello2-bucaneve', 'fondale', 'esterno.png')
@@ -266,8 +207,7 @@ for n, p in enumerate(pieces[1:], 1):
     strip = np.concatenate([strip[:, :ia - BL], strip[:, ia - BL:ia] * (1 - t) + q[:, ib - BL:ib] * t, q[:, ib:]], 1)
     seams.append(ia - BL // 2); cuts.append((ia, ib))
     if n == len(pieces) - 1: bar_x = ia - ib  # inizio (virtuale) del pezzo del bar
-street_prima_montagne = Image.fromarray(strip.clip(0, 255).astype(np.uint8))
-street = montagne_in_lontananza(street_prima_montagne, 1.0)
+street = Image.fromarray(strip.clip(0, 255).astype(np.uint8))
 # stessa strada alla densita' finale, con gli stessi tagli
 DB = DMAX
 hp = [np.array(pezzo(f, 'strada', S_STREET, DB)).astype(float) for f in files_strada + [_b]]
@@ -276,8 +216,7 @@ for q, (ia, ib) in zip(hp[1:], cuts):
     a_, b_ = int(round(ia * DB)), int(round(ib * DB))
     t = np.linspace(0, 1, bl)[None, :, None]
     hs = np.concatenate([hs[:, :a_ - bl], hs[:, a_ - bl:a_] * (1 - t) + q[:, b_ - bl:b_] * t, q[:, b_:]], 1)
-hstreet = montagne_in_lontananza(Image.fromarray(hs.clip(0, 255).astype(np.uint8)), DB)
-street_prima_montagne.save(f'{PREV}/fondale_strada_prima_montagne.png')
+hstreet = Image.fromarray(hs.clip(0, 255).astype(np.uint8))
 parts = []; P = int(512 * DB)
 for x in range(0, hstreet.width, P):
     parts.append(b64jpg(hstreet.crop((x, 0, min(hstreet.width, x + P), hstreet.height))))
