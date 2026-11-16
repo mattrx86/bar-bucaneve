@@ -185,10 +185,10 @@ def pezzo(path, tipo, S, dens):
     return pil.crop((0, top, pil.width, top + int(round(VH * dens))))
 
 def montagne_in_lontananza(image, dens=1.0):
-    """Aggiunge due creste alpine fredde nelle sole zone di vegetazione lontana.
+    """Doppia cresta alpina blu-grigia integrata nella vegetazione di fondo.
 
-    Il fondale originale e le facciate restano intatti: la maschera limita la tinta alle
-    aree verdi scure della fascia alta. Le creste sono rasterizzate sulla griglia pixel.
+    La maschera cromatica evita facciate, finestre, insegne e strada. Non è una
+    parallasse autonoma: è un intervento pittorico sullo skyline già appiattito.
     """
     arr = np.array(image.convert('RGB'), dtype=np.uint8)
     h, w = arr.shape[:2]
@@ -198,43 +198,50 @@ def montagne_in_lontananza(image, dens=1.0):
     yy, xx = np.mgrid[0:h, 0:w]
     r, g, b = arr[..., 0].astype(int), arr[..., 1].astype(int), arr[..., 2].astype(int)
     lum = (r * 30 + g * 59 + b * 11) / 100
-    vegetazione = (yy < int(138 * dens)) & (g > r + 5) & (g > b + 2) & (lum < 138)
+    # Vegetazione scura nella fascia alta: esclude pietra, legno, vetri e illuminazione.
+    vegetazione = (
+        (yy < int(158 * dens)) & (lum < 142) &
+        (g >= r - 1) & (g > b - 13) & (r < 112) & (b < 124)
+    )
 
     def cresta(base, ampiezze, passo):
-        m = Image.new('L', (w, h), 0)
-        draw = ImageDraw.Draw(m)
+        fill = Image.new('L', (w, h), 0)
+        edge = Image.new('L', (w, h), 0)
+        df, de = ImageDraw.Draw(fill), ImageDraw.Draw(edge)
         punti = [(0, int(base * dens))]
         i = 0
         x = 0
         while x < w:
             span = int(passo * dens)
-            # Tre cime sfalsate per segmento: profilo irregolare, non una sagoma triangolare ripetuta.
             a1, a2, a3 = ampiezze[i % len(ampiezze)]
             punti.extend([
-                (min(w, x + int(span * 0.20)), int((base - a1 * 0.62) * dens)),
-                (min(w, x + int(span * 0.43)), int((base - a1) * dens)),
-                (min(w, x + int(span * 0.62)), int((base - a2 * 0.48) * dens)),
-                (min(w, x + int(span * 0.79)), int((base - a2) * dens)),
-                (min(w, x + int(span * 0.91)), int((base - a3 * 0.55) * dens)),
+                (min(w, x + int(span * 0.18)), int((base - a1 * 0.58) * dens)),
+                (min(w, x + int(span * 0.39)), int((base - a1) * dens)),
+                (min(w, x + int(span * 0.57)), int((base - a2 * 0.42) * dens)),
+                (min(w, x + int(span * 0.75)), int((base - a2) * dens)),
+                (min(w, x + int(span * 0.91)), int((base - a3 * 0.52) * dens)),
                 (min(w, x + span), int(base * dens)),
             ])
             x += span
             i += 1
         polygon = punti + [(w, h), (0, h)]
-        draw.polygon(polygon, fill=255)
-        return np.asarray(m, dtype=np.uint8) > 0
+        df.polygon(polygon, fill=255)
+        de.line(punti, fill=255, width=max(1, int(2 * dens)))
+        return np.asarray(fill, dtype=np.uint8) > 0, np.asarray(edge, dtype=np.uint8) > 0
 
-    # Monti lontani: blu ardesia, con creste più chiare; rilievo anteriore più scuro e basso.
-    back = cresta(108, [(44, 52, 36), (50, 38, 46), (40, 55, 34), (47, 42, 51)], 260)
-    near = cresta(119, [(28, 34, 22), (31, 23, 30), (25, 35, 21), (29, 26, 34)], 315)
+    # Due profili sfalsati: la cresta chiara è più lontana, quella scura più vicina.
+    back, back_edge = cresta(117, [(53, 60, 43), (58, 46, 54), (47, 63, 40), (55, 49, 59)], 265)
+    near, near_edge = cresta(132, [(34, 39, 27), (37, 29, 35), (30, 41, 25), (35, 31, 39)], 315)
     out = arr.astype(float)
     for mask, col, alpha in (
-        (back & vegetazione, np.array([79, 101, 124], dtype=float), 0.34),
-        (near & vegetazione, np.array([61, 82, 103], dtype=float), 0.26),
+        (back & vegetazione, np.array([77, 101, 128], dtype=float), 0.66),
+        (near & vegetazione, np.array([57, 79, 103], dtype=float), 0.62),
     ):
         out[mask] = out[mask] * (1.0 - alpha) + col * alpha
+    # Un filo freddo lungo i crinali rende leggibile la silhouette anche a scala di gioco.
+    for mask in (back_edge & vegetazione, near_edge & vegetazione):
+        out[mask] = out[mask] * 0.30 + np.array([142, 162, 181], dtype=float) * 0.70
     return Image.fromarray(out.clip(0, 255).astype(np.uint8), 'RGB')
-
 
 files_strada = cartella('livello1-strada', 'fondali')
 _b = J('livello2-bucaneve', 'fondale', 'esterno.png')
