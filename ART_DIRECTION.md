@@ -92,3 +92,30 @@ Ogni nuova famiglia di asset va verificata prima di sostituire quella esistente:
 ## 7. Criterio di qualità
 
 Un asset è approvabile soltanto se, inserito nella schermata di gioco, sembra appartenere allo stesso universo visivo degli altri: stessa scala dei pixel, peso del contorno, livello di dettaglio, palette, illuminazione e qualità dell'animazione. La somiglianza a una reference non deve compromettere la leggibilità o l'identità originale di BUCA SLUG.
+
+
+## 8. Inventario effettivo del repository (audit iniziale)
+
+L'audit del branch `art-direction/neo-geo-cohesion` ha verificato questi asset sorgente:
+
+- Eroi: `Daniele.png`, `Marco.png`, `Mattia.png`, `paolo.png`, `Michela.png`, `Roberto.png`, `Vero.png`.
+- Nemici strada: `gelataia.png`, `gelataio1.png`, `gelataio2.png`, `ubriaca.png`, `ubriaco1.png`, `ubriaco2.png`.
+- Boss: `giova.png`, `boss-ettore/pose.png`, `boss-ettore/ritratto.png`.
+- Fondali: quattro segmenti strada, esterno del Bar Bucaneve e cantina.
+- Oggetti: foglio `oggetti.png` con 38 elementi dichiarati dalla pipeline.
+- Effetti: foglio `armi.png`, che alimenta casse, icone, proiettili, lampi, esplosioni, polvere, scintille, detriti e cratere.
+- Audio: musiche e voci di Giova, Ettore e nemici.
+
+I quattro amici principali sono Daniele, Marco, Mattia e Paolo. Michela, Roberto e Vero restano personaggi selezionabili aggiuntivi già presenti nel gioco. Non rinominare o sostituire questi file senza una richiesta esplicita.
+
+## 9. Modifiche gameplay già applicate nel branch
+
+- Rimosso il puntatore laser rosso di Ettore.
+- La preparazione del colpo è comunicata dalla posa di mira, dal segnale `!` e dall'avviso audio.
+- In fase 2 Ettore spara tre scariche invece di due; ogni scarica usa otto pallettoni con dispersione leggermente maggiore e velocità aumentata.
+- Rimossi gli oggetti decorativi collocati sul terreno in strada e in cantina. Le casse funzionali delle armi definite in `PICKUPS` restano presenti.
+- I 38 asset scenici restano nel repository e nella pipeline: non sono cancellati e possono essere riutilizzati in seguito.
+
+## 10. Asset mancanti per la fase finale
+
+Nel repository attuale non è presente un asset dedicato del dune buggy rosso BUCANEVE né un livello neon separato per l'effetto di sfarfallio. Non simularli con forme provvisorie o immagini non approvate: serviranno nuovi PNG coerenti con la reference e integrati nella pipeline.
