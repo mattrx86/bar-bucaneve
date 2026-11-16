@@ -3,6 +3,7 @@ on:
   push:
     branches:
       - art-cohesion/pixel-pipeline-v1
+      - art-cohesion/black-outline-preview
   pull_request:
     branches:
       - main
