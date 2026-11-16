@@ -27,7 +27,7 @@ jobs:
       - name: Install Python dependencies
         run: python -m pip install --upgrade pillow numpy scipy
       - name: Install Node dependencies
-        run: npm ci
+        run: npm install --no-audit --no-fund
       - name: Rebuild game from original graphics
         run: sh tools/build_all.sh
       - name: Collect build and graphic previews
