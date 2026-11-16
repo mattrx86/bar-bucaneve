@@ -5,7 +5,7 @@ import numpy as np
 from PIL import Image
 from scipy import ndimage as nd
 sys.path.insert(0, os.path.dirname(__file__))
-from sheet import load_mask, peel, peel_dark, outline, despeckle, components, rows, ink
+from sheet import estrai_o_ritocca, load_mask, peel, peel_dark, outline, despeckle, components, rows, ink
 
 PKG, OUT_TS, PREV = sys.argv[1], sys.argv[2], sys.argv[3]
 os.makedirs(PREV, exist_ok=True)
@@ -78,7 +78,9 @@ for key, path, mode, ROWS, refpose, target, dil in ENT:
         raise SystemExit(f'{key}: righe trovate {got}, attese {want}')
     raw = {}
     for names, r in zip(ROWS, R):
-        for n, c in zip(names, r): raw[n] = c['img']
+        for n, c in zip(names, r):
+            raw[n], rit = estrai_o_ritocca(key, n, c['img'])
+            if rit: report.append(f'  ritocco usato: {key}/{n}')
     ref = raw[refpose]; rh = (ref[..., 3] > 0).any(1).sum()
     # densita': la texture ha d pixel per ogni pixel del gioco (max DMAX, mai ingrandire l'originale)
     d = DMAX  # stessa grandezza di pixel per tutti

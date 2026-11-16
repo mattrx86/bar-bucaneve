@@ -167,3 +167,23 @@ def despeckle(a, minpx=4):
         for i, z in enumerate(sz, 1):
             if z < minpx: a[lab == i, 3] = 0
     return a
+
+# ---------------------------------------------------------------------------
+# Fotogrammi singoli: ESTRATTI (generati, da usare come base per ritoccare) e RITOCCHI (vostri).
+#   estratti/<foglio>/<posa>.png         ogni posa ritagliata e pulita, alla risoluzione originale
+#   grafica/ritocchi/<foglio>/<posa>.png se esiste, sostituisce quella posa nel gioco
+# Il ritocco deve avere la STESSA tela dell'estratto (stessa larghezza/altezza, piedi in basso),
+# sfondo trasparente, personaggio rivolto a destra.
+# ---------------------------------------------------------------------------
+import os as _os
+from PIL import Image as _Image
+
+def estrai_o_ritocca(gruppo, nome, img):
+    rit = _os.path.join('grafica', 'ritocchi', gruppo, nome + '.png')
+    if _os.path.exists(rit):
+        r = np.array(_Image.open(rit).convert('RGBA'))
+        r[..., 3] = np.where(r[..., 3] >= 128, 255, 0)
+        return r, True
+    out = _os.path.join('estratti', gruppo); _os.makedirs(out, exist_ok=True)
+    _Image.fromarray(img.astype(np.uint8), 'RGBA').save(_os.path.join(out, nome + '.png'), optimize=True)
+    return img, False

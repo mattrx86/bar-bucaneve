@@ -5,7 +5,7 @@ import sys, os, io, json, base64, subprocess, tempfile
 import numpy as np
 from PIL import Image
 sys.path.insert(0, os.path.dirname(__file__))
-from sheet import load_mask, peel, components, ink
+from sheet import load_mask, peel, components, ink, estrai_o_ritocca
 
 def to_small(img, s):
     h, w = img.shape[:2]
@@ -40,7 +40,7 @@ for k, riga in enumerate(NOMI):
     r = sorted([c for c in C if B[k] <= (c['y0'] + c['y1']) / 2 < B[k + 1]], key=lambda c: c['x0'])
     if len(r) != len(riga): raise SystemExit(f'riga {k}: trovati {len(r)} oggetti, attesi {len(riga)}')
     for (nome, h), c in zip(riga, r):
-        img = c['img']; hh = (img[..., 3] > 0).any(1).sum()
+        img, _ = estrai_o_ritocca('oggetti', nome, c['img']); hh = (img[..., 3] > 0).any(1).sum()
         d = 1.5  # stessa densita' degli sprite (vedi DMAX in build_assets.py)
         sm = ink(to_small(img, h * d / hh))
         m = sm[..., 3] > 0; ys, xs = np.where(m)
@@ -117,6 +117,7 @@ if ARMI:
         img = A[y0:y1, x0:x1].copy()
         m = img[..., 3] > 0; ys, xs = np.where(m)
         img = img[ys.min():ys.max() + 1, xs.min():xs.max() + 1]
+        img, _ = estrai_o_ritocca('armi', nome, img)
         d = 1.5
         sm = to_small(img, w * d / img.shape[1])
         if conto: sm = ink(sm)

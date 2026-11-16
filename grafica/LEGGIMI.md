@@ -68,6 +68,12 @@ Nome del file = `chi_quando`. Potete fare più versioni della stessa frase aggiu
 
 Finché una voce manca, per gelatai, ubriachi e Giova ne ricavo una cambiando il timbro delle registrazioni che ci sono già (più acuta, più grave, "ubriaca"). Appena caricate quella vera, vince la vostra.
 
+## Ritocchi di singole pose
+
+Ogni posa ritagliata e pulita si trova in `estratti/` (fuori da `grafica/`). Per correggerne una
+senza rifare tutto il foglio, mettete la versione ritoccata, **stessa tela e stesso nome**, in
+`grafica/ritocchi/<cartella>/<posa>.png`. Istruzioni complete in `estratti/LEGGIMI.md`.
+
 ## Attenzione
 
 - Il repository è **pubblico**: chiunque può vedere e scaricare questi file (anche le voci).
