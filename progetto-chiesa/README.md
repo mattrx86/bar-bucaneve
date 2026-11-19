@@ -1,31 +1,37 @@
-# Chiesa Gotica — pacchetto ambiente
+# HOLY SLUG — pacchetto grafico e handoff
 
-## Stato consegna
-Sono presenti i primi asset modulari vettoriali a geometria pixelata (SVG, `shape-rendering: crispEdges`), organizzati per funzione. Sono sorgenti grafici di partenza, non ancora sprite PNG rasterizzati né integrati nel gioco.
+Holy Slug è il livello successivo a Buca Slug. Questa cartella raccoglie i riferimenti originali forniti dall'utente e il kit grafico preliminare per costruire la chiesa gotica.
 
-## Asset presenti
-- `background/church_parallax.svg`: fondale lungo della navata, muratura, colonne e finestre.
-- `architecture/gothic_modules.svg`: moduli di colonne, archi, portali e finestre.
-- `tilesets/floor_carpet.svg`: pavimentazione in pietra e tappeto.
-- `props/church_props.svg`: panca, candeliere, croce, quadro, statua e arredi.
-- `altar/altar_and_rosette.svg`: altare e rosone/vetrata di fondo.
-- `lighting/candle_flame.svg`: tre pose di fiamma per animazione ambientale.
+## Asset grafici disponibili
+- `background/church_parallax.svg` — composizione della navata.
+- `background/entrance_portal.svg` — ingresso monumentale.
+- `architecture/gothic_modules.svg` — moduli architettonici.
+- `parallax/parallax_layers.svg` — fondale, archi e pavimento su gruppi distinti.
+- `tilesets/floor_carpet.svg` — pavimento e tappeto.
+- `tilesets/stone_floor_variants.svg` — 4 tile 64×64.
+- `props/church_props.svg` — props di chiesa.
+- `foreground/foreground_props.svg` — elementi di primo piano.
+- `altar/altar_and_rosette.svg`, `altar/altar_front_detail.svg` — altare e dettagli.
+- `stained-glass/great_rose_window.svg` — rosone gotico policromo.
+- `lighting/candle_flame.svg`, `animations/flames_and_candles.svg` — fiamme e strip animata.
 
-## Regole di integrazione
-1. Non modificare gameplay, collisioni, armi, personaggi giocabili, nemici, boss, HUD, input o salvataggi.
-2. Non sovrascrivere gli asset della cantina: sostituire solo l'ambientazione dopo test.
-3. Prima rasterizzare gli SVG in PNG alla scala richiesta dal progetto; usare nearest-neighbour per ogni successivo ridimensionamento. Non applicare antialiasing.
-4. Ritagliare i singoli moduli dagli atlas usando le coordinate visibili nel viewBox e documentare ogni rettangolo sorgente nel manifest.
-5. Verificare trasparenze, baseline e tile seams in Phaser. Gli SVG qui presenti hanno sfondo scuro di riferimento: rimuoverlo/mascherarlo quando si estraggono gli sprite trasparenti.
-6. Mantenere il contratto tecnico della fase esistente finché il nuovo scenario non è stato validato.
+## Riferimenti personaggi originali
+- `characters/chierichetto/` — 2 PNG.
+- `characters/don-antonio/` — 11 JPEG di riferimento.
+- `characters/griso/` — 1 PNG.
+- `characters/suora/` — 2 PNG.
 
-## Da completare prima della release
-- Rasterizzazione e slicing in PNG trasparenti.
-- Varianti aggiuntive di panche, statue, candelabri e detriti.
-- Vetrata completa ad alta leggibilità e layer luce separati.
-- Loop di fiamma e tremolio luce.
-- Test di continuità del fondale e del pavimento.
-- Integrazione nel livello e test build.
+Queste immagini sono riferimenti originali, non necessariamente spritesheet pronti per Phaser. Non sostituirle con personaggi inventati.
 
-## Personaggi e audio
-Gli asset dei personaggi, le musiche e gli effetti sonori forniti dall'utente devono essere mantenuti intatti. Prima di integrarli, individuare i file effettivi nel branch sorgente e registrare i percorsi nel manifest. Non duplicare file già presenti nel progetto.
+## Stato reale
+Il kit ambientale è composto da sorgenti SVG modulari. Non è ancora una libreria PNG rasterizzata e testata nel gioco. Claude deve completare rasterizzazione, slicing, trasparenze, pivot, baseline e integrazione, documentando ogni esportazione nel manifest. I riferimenti personaggi devono essere ispezionati e validati; non presumere che siano sprite runtime.
+
+## Procedura
+1. Leggere `technical/CLAUDE_HANDOFF.md` e `asset-manifest/ASSET_MANIFEST.md`.
+2. Rasterizzare in PNG con pixel netti e trasparenza reale.
+3. Estrarre atlas e gruppi in asset indipendenti.
+4. Verificare tile seams, dimensioni, pivot e baseline a 384×216 logici.
+5. Integrare solo dopo aver verificato il branch principale e senza modificare Buca Slug.
+6. Eseguire build, test e una partita completa di Holy Slug.
+
+Non considerare il progetto pronto solo perché gli SVG sono presenti: il livello deve essere effettivamente giocabile dall'inizio alla fine.
