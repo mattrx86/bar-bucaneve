@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="128" viewBox="0 0 256 128" shape-rendering="crispEdges">
+<!-- 4-frame flame strip; each frame 32x48, origin top-left; candle base separate -->
+<g id="flame-0" transform="translate(0 0)"><path d="M16 2l7 15-2 8 7 9-2 10H6L4 34l8-10-2-8z" fill="#e77b32"/><path d="M16 16l5 12-4 9h-7l1-10z" fill="#ffd16c"/><path d="M14 26h5v10h-5z" fill="#fff0b0"/></g>
+<g id="flame-1" transform="translate(32 0)"><path d="M16 1l5 12-1 9 8 8-4 14H7L4 33l8-9-2-9z" fill="#e77b32"/><path d="M16 14l4 13-5 10H9l3-11z" fill="#ffd16c"/><path d="M14 25h5v10h-5z" fill="#fff0b0"/></g>
+<g id="flame-2" transform="translate(64 0)"><path d="M16 3l8 14-4 8 6 8-4 11H6L4 34l9-12-2-8z" fill="#e77b32"/><path d="M16 17l5 11-5 9H9l3-11z" fill="#ffd16c"/><path d="M14 27h5v9h-5z" fill="#fff0b0"/></g>
+<g id="flame-3" transform="translate(96 0)"><path d="M16 0l4 14 7 9-3 11 2 10H6L4 33l8-10-1-10z" fill="#e77b32"/><path d="M16 15l5 13-5 9H9l3-12z" fill="#ffd16c"/><path d="M14 26h5v9h-5z" fill="#fff0b0"/></g>
+<g id="candle" transform="translate(144 12)"><path d="M9 36h22v50H9z" fill="#bda98a" stroke="#28202a" stroke-width="3"/><path d="M9 40h22M9 78h22" stroke="#e2cfaa" stroke-width="2"/><path d="M18 30h4v8h-4z" fill="#241c20"/><path d="M20 2l7 14-3 11H16l-3-11z" fill="#e77b32"/><path d="M20 12l4 8-4 6-4-6z" fill="#ffe08b"/></g>
+</svg>
