@@ -27,7 +27,7 @@ Per cancellare un file: apritelo, menu **⋯** in alto a destra → **Delete fil
 | `livello3-cantina/boss-ettore/` | Ettore: pose (**17**) e ritratto grande | `pose.png`, `ritratto.png` | PNG |
 | `oggetti/` | foglio degli oggetti scenici (38 oggetti in 5 righe) | `oggetti.png` | PNG trasparente |
 | `voci/` | voci registrate | vedi elenco sotto | `.m4a` `.mp3` `.wav` (anche dal telefono) |
-| `musica/` | brani (non ancora usati nel gioco) | `strada`, `boss`… | `.mp3` |
+| `musica/` | brani interi, usati dal gioco a volume basso | `Strada`, `Ettore` | `.mp3` |
 
 I nomi dei file **non devono avere spazi né accenti**.
 

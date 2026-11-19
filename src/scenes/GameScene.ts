@@ -19,22 +19,49 @@ import { Bullet, BulletOpts, Enemy, Player, World, BossBase, Giova, Ettore } fro
 
 interface Prop { s: Phaser.GameObjects.Image; def: PropPos; vita: number; rompe: Rottura }
 import { Controls } from '../core/controls';
+import { mostraTouch } from '../core/touch';
 import { sfx, setMuted, isMuted, voce, musica, parla } from '../core/audio';
 import { loadSave, writeSave } from '../core/save';
 import { txt, zoomCamera, PixelText } from '../core/ui';
 import type { Risultato } from './ResultScene';
 
-export interface Stato { punti: number; vite: number; tempo: number; arma: string; munizioni: number; bombe: number; crediti: number; checkpoint?: 'meta' | 'giova' }
-interface Dati { fase: 'strada' | 'cantina'; stato: Stato | null }
+/** Stato di un singolo giocatore: punti, vite e arma sono suoi (ogni giocatore ha le proprie vite). */
+export interface PStato { punti: number; vite: number; arma: string; munizioni: number; bombe: number }
+export interface Stato { tempo: number; crediti: number; checkpoint?: 'meta' | 'giova'; g: PStato[] }
+/** `eroi`: gli id dei personaggi scelti, uno per giocatore (1 o 2). */
+interface Dati { fase: 'strada' | 'cantina'; stato: Stato | null; eroi?: string[] }
+const nuovoPStato = (vite: number): PStato => ({ punti: 0, vite, arma: 'pistola', munizioni: -1, bombe: 10 });
+/** Colori dei due giocatori (etichette sopra la testa e nell'HUD). */
+const COLORE_G = ['#ffe066', '#60d8ff'];
 
 export class GameScene extends Phaser.Scene implements World {
   get sc(): Phaser.Scene { return this; }
-  giocatore!: Player;
+  giocatori: Player[] = [];
+  /** Il primo giocatore (per chi ragiona su un giocatore solo). */
+  get giocatore(): Player { return this.giocatori[0]; }
+  /** Il giocatore vivo piu' vicino a `x`; se sono tutti a terra, il piu' vicino in assoluto. */
+  bersaglio(x: number): Player {
+    const vivi = this.giocatori.filter((q) => !q.morto);
+    const lista = vivi.length ? vivi : this.giocatori;
+    return lista.reduce((a, b) => (Math.abs(b.x - x) < Math.abs(a.x - x) ? b : a));
+  }
+  /** Ascissa del giocatore piu' avanti tra quelli vivi: la camera e le ondate seguono lui. */
+  private xGuida(): number {
+    const vivi = this.giocatori.filter((q) => !q.morto);
+    return Math.max(...(vivi.length ? vivi : this.giocatori).map((q) => q.x));
+  }
+  /** Ascissa del vivo piu' indietro. */
+  private xRetro(): number {
+    const vivi = this.giocatori.filter((q) => !q.morto);
+    return Math.min(...(vivi.length ? vivi : this.giocatori).map((q) => q.x));
+  }
+  private eroi: HeroDef[] = [];
+  private ctrls: Controls[] = [];
+  private etichette: PixelText[] = [];
   nemici: Enemy[] = [];
   private proiettili: Bullet[] = [];
   private casse: { s: Phaser.GameObjects.Image; arma: string }[] = [];
   private boss: BossBase | null = null;
-  private ctrl!: Controls;
   private hero!: HeroDef;
   private fase: 'strada' | 'cantina' = 'strada';
   private larghezza = 0;
@@ -43,14 +70,14 @@ export class GameScene extends Phaser.Scene implements World {
   private arena: { x: number } | null = null;
   private onda = 0;
   private ondaViva: Enemy[] = [];
-  private st: Stato = { punti: 0, vite: 3, tempo: 0, arma: 'pistola', munizioni: -1, bombe: 10, crediti: 0 };
+  private st: Stato = { tempo: 0, crediti: 0, g: [nuovoPStato(3)] };
   private pausa = false;
   private finito = false;
   private uscita = false;
-  private rinascitaT = -1;
+  private rinascitaT: number[] = [-1];
   private hud!: {
-    vita: Phaser.GameObjects.Image[]; vite: PixelText; punti: PixelText;
-    armi: PixelText; bombe: PixelText; armaNome: PixelText; icona: Phaser.GameObjects.Image; tempo: PixelText; combo: PixelText;
+    blocchi: { vita: Phaser.GameObjects.Image[]; vite: PixelText; punti: PixelText; armi: PixelText; bombe: PixelText; armaNome: PixelText; icona: Phaser.GameObjects.Image }[];
+    tempo: PixelText; combo: PixelText;
     boss: Phaser.GameObjects.Container; bossSeg: Phaser.GameObjects.Image[]; pausa: PixelText; go: Phaser.GameObjects.Container;
   };
   diff!: DiffDef;
@@ -60,24 +87,26 @@ export class GameScene extends Phaser.Scene implements World {
   private colpitoNelBoss = false;
   private props: Prop[] = [];
   private premi: { s: Phaser.GameObjects.Image; tipo: 'bombe' | 'gelato' }[] = [];
-  private continua: { c: Phaser.GameObjects.Container; t: PixelText; n: number; acc: number; aperto: number } | null = null;
+  private continua: { c: Phaser.GameObjects.Container; t: PixelText; n: number; acc: number; aperto: number; toccato?: boolean } | null = null;
 
   constructor() { super('Game'); }
 
   init(d: Dati): void {
     this.fase = d?.fase ?? 'strada';
     this.diff = getDiff(loadSave().diff);
-    this.st = d?.stato ? { ...d.stato } : { punti: 0, vite: this.diff.vite, tempo: 0, arma: 'pistola', munizioni: -1, bombe: 10, crediti: 0 };
+    const ids = d?.eroi?.length ? d.eroi : [loadSave().charId];
+    this.eroi = ids.slice(0, 2).map((id) => getHero(id));
+    this.hero = this.eroi[0];
+    this.st = d?.stato ? { ...d.stato, g: d.stato.g.map((q) => ({ ...q })) } : { tempo: 0, crediti: 0, g: this.eroi.map(() => nuovoPStato(this.diff.vite)) };
     this.congelato = 0; this.stopCd = 0; this.combo = 0; this.comboT = 0; this.colpitoNelBoss = false; this.props = []; this.premi = []; this.continua = null;
     this.nemici = []; this.proiettili = []; this.casse = []; this.boss = null; this.arena = null;
     this.onda = 0; this.ondaViva = []; this.pausa = false; this.finito = false; this.uscita = false;
-    this.camX = 0; this.bloccoDx = Infinity; this.rinascitaT = -1; this.giovaArrivato = false; this.ondaPronta = true;
+    this.camX = 0; this.bloccoDx = Infinity; this.rinascitaT = this.eroi.map(() => -1); this.giovaArrivato = false; this.ondaPronta = true;
     this.time.paused = false; // il Clock conserva `paused` anche dopo scene.restart
   }
 
   create(): void {
     zoomCamera(this);
-    this.hero = getHero(loadSave().charId);
     const pezzi = this.fase === 'strada' ? BG.street.parts : BG.cellar.parts;
     this.larghezza = this.fase === 'strada' ? BG.street.w : BG.cellar.w;
     const dens = this.fase === 'strada' ? BG.street.d : BG.cellar.d;
@@ -97,20 +126,28 @@ export class GameScene extends Phaser.Scene implements World {
       if (pp.rompe) this.props.push({ s: im, def: pp, vita: pp.vita ?? 20, rompe: pp.rompe });
     }
 
-    this.giocatore = new Player(this, this.hero, 60);
-    const p = this.giocatore;
-    p.prendiArma(this.st.arma); if (this.st.munizioni !== -1 || p.arma.munizioni !== -1) p.munizioni = this.st.munizioni;
-    p.bombe = this.st.bombe;
+    this.giocatori = this.eroi.map((h, i) => new Player(this, h, 60 + i * 24, i));
+    this.giocatori.forEach((p, i) => {
+      const g = this.st.g[i];
+      p.prendiArma(g.arma); if (g.munizioni !== -1 || p.arma.munizioni !== -1) p.munizioni = g.munizioni;
+      p.bombe = g.bombe;
+    });
 
     // ripartenza da un checkpoint (dopo un CONTINUE)
     if (this.fase === 'strada' && this.st.checkpoint) {
       const arenaX = Math.round(BG.street.barX + (BG.street.barW - VIEW_W) / 2);
-      if (this.st.checkpoint === 'giova') { this.onda = WAVES.length; p.x = arenaX + 30; this.camX = arenaX - 60; }
-      else { this.onda = CHECKPOINT_ONDA; p.x = WAVES[CHECKPOINT_ONDA].x - 110; this.camX = Math.max(0, p.x - 150); }
-      for (const c of this.casse) if (c.s.x < p.x) c.s.destroy();
+      if (this.st.checkpoint === 'giova') { this.onda = WAVES.length; this.giocatori.forEach((p, i) => { p.x = arenaX + 30 + i * 24; }); this.camX = arenaX - 60; }
+      else { this.onda = CHECKPOINT_ONDA; this.giocatori.forEach((p, i) => { p.x = WAVES[CHECKPOINT_ONDA].x - 110 + i * 24; }); this.camX = Math.max(0, this.giocatori[0].x - 150); }
+      for (const c of this.casse) if (c.s.x < this.giocatori[0].x) c.s.destroy();
     }
 
-    this.ctrl = new Controls(this);
+    this.ctrls = this.eroi.length === 2 ? [new Controls(this, 'p1'), new Controls(this, 'p2')] : [new Controls(this)];
+    // in due, un'etichetta sopra la testa dice chi e' chi
+    this.etichette = this.eroi.length === 2
+      ? this.giocatori.map((_, i) => txt(this, 0, 0, `${i + 1}P`, 8, COLORE_G[i]).setOrigin(0.5, 1).setDepth(95))
+      : [];
+    mostraTouch(true);
+    this.events.once('shutdown', () => mostraTouch(false));
     this.creaHud();
     this.cameras.main.fadeIn(400);
 
@@ -128,12 +165,13 @@ export class GameScene extends Phaser.Scene implements World {
   sparaProiettile(o: BulletOpts): void {
     // colpo a bruciapelo: la canna è già oltre il bersaglio, quindi controlliamo il tratto spalla-canna
     if (!o.ostile && !o.arco) {
-      const p = this.giocatore;
+      const chi = o.chi ?? 0;
+      const p = this.giocatori[chi] ?? this.giocatore;
       const linea = new Phaser.Geom.Line(p.x, o.y, o.x, o.y);
       const bersagli: { box: Phaser.Geom.Rectangle; colpisci: () => void }[] = [];
-      for (const e of this.nemici) if (!e.morto) bersagli.push({ box: e.box(), colpisci: () => e.danno(o.danno, Math.sign(o.x - p.x)) });
+      for (const e of this.nemici) if (!e.morto) bersagli.push({ box: e.box(), colpisci: () => e.danno(o.danno, Math.sign(o.x - p.x), false, chi) });
       const b = this.boss;
-      if (b && !b.morto && b.attivo) bersagli.push({ box: b.box(), colpisci: () => b.danno(o.danno) });
+      if (b && !b.morto && b.attivo) bersagli.push({ box: b.box(), colpisci: () => b.danno(o.danno, chi) });
       const t = bersagli.find((q) => Phaser.Geom.Intersects.LineToRectangle(linea, q.box));
       if (t) {
         if (o.esplosivo) { this.boom(o.x, o.y, true); t.colpisci(); } else { t.colpisci(); this.scintilla(o.x, o.y); }
@@ -142,8 +180,8 @@ export class GameScene extends Phaser.Scene implements World {
     }
     this.proiettili.push(new Bullet(this, o));
   }
-  punti(n: number, x?: number, y?: number): void {
-    this.st.punti += n;
+  punti(n: number, x?: number, y?: number, chi = 0): void {
+    (this.st.g[chi] ?? this.st.g[0]).punti += n;
     if (x !== undefined && y !== undefined) this.testo(x, y, `+${n}`, '#ffe066');
   }
   testo(x: number, y: number, s: string, color = '#ffffff'): void {
@@ -216,11 +254,11 @@ export class GameScene extends Phaser.Scene implements World {
       } });
     } });
   }
-  uccisione(base: number, x: number, y: number, mischia: boolean): void {
+  uccisione(base: number, x: number, y: number, mischia: boolean, chi = 0): void {
     this.combo++; this.comboT = 2.4;
     const molt = Math.min(5, 1 + Math.floor((this.combo - 1) / 2));
     const n = Math.round((base * molt + (mischia ? 50 : 0)) * this.diff.punti);
-    this.punti(n, x, y);
+    this.punti(n, x, y, chi);
     if (molt > 1) { this.hud.combo.setText(`COMBO X${molt}`).setVisible(true).setAlpha(1); }
     if (Phaser.Math.Between(0, 99) < 6) voce('gelataio_pepite', 8, 0.9);
     if (molt >= 3) parla([this.hero.id, 'eroe'], 'combo', 0.5);
@@ -237,8 +275,8 @@ export class GameScene extends Phaser.Scene implements World {
     const b = this.boss;
     return !!b && !b.morto && b.attivo && Math.abs(b.x - x) < 34 && Math.abs(b.y - y) < 30;
   }
-  colpoMischia(area: Phaser.Geom.Rectangle, danno: number): void {
-    if (this.boss && !this.boss.morto && Phaser.Geom.Intersects.RectangleToRectangle(area, this.boss.box())) this.boss.danno(Math.round(danno * 0.5));
+  colpoMischia(area: Phaser.Geom.Rectangle, danno: number, chi = 0): void {
+    if (this.boss && !this.boss.morto && Phaser.Geom.Intersects.RectangleToRectangle(area, this.boss.box())) this.boss.danno(Math.round(danno * 0.5), chi);
   }
 
   // ------------------------------------------------------------------ ciclo
@@ -246,24 +284,30 @@ export class GameScene extends Phaser.Scene implements World {
     const dt = Math.min(dms / 1000, 1 / 30);
     // micro-pausa sui colpi: prima di leggere i comandi, così le pressioni (salto, bomba) non vanno perse
     if (this.congelato > 0 && !this.pausa && !this.continua) { this.congelato -= dms / 1000; return; }
-    const inp = this.ctrl.leggi();
-    if (inp.pausaTap && !this.finito && !this.uscita) {
+    const inps = this.ctrls.map((c) => c.leggi());
+    const flush = () => this.ctrls.forEach((c) => c.flush());
+    if (inps.some((i) => i.pausaTap) && !this.finito && !this.uscita) {
       this.pausa = !this.pausa; this.hud.pausa.setVisible(this.pausa);
       // ferma anche timer (ondate, arrivo dei boss) e animazioni, non solo l'update
       this.time.paused = this.pausa;
       if (this.pausa) this.tweens.pauseAll(); else this.tweens.resumeAll();
     }
     if (this.pausa) {
-      if (inp.bombaTap) { setMuted(!isMuted()); writeSave({ muted: isMuted() }); }
-      this.ctrl.flush(); return;
+      if (inps.some((i) => i.audioTap)) { setMuted(!isMuted()); writeSave({ muted: isMuted() }); }
+      flush(); return;
     }
-    if (this.continua) { this.aggiornaContinua(dt, inp); this.ctrl.flush(); return; }
+    if (this.continua) { this.aggiornaContinua(dt, { confermaTap: inps.some((i) => i.confermaTap) }); flush(); return; }
     this.stopCd = Math.max(0, this.stopCd - dt);
     if (!this.finito) this.st.tempo += dt;
     if (this.comboT > 0) { this.comboT -= dt; if (this.comboT <= 0) { this.combo = 0; this.hud.combo.setVisible(false); } }
 
-    const p = this.giocatore;
-    p.update(dt, this.uscita || this.finito ? { sx: false, dx: this.uscita, su: false, giu: false, fuoco: false, saltoTap: false, bombaTap: false, meleeTap: false } : inp);
+    const fermo = { sx: false, dx: this.uscita, su: false, giu: false, fuoco: false, saltoTap: false, bombaTap: false, meleeTap: false };
+    this.giocatori.forEach((p, i) => p.update(dt, this.uscita || this.finito ? fermo : inps[i]));
+    this.etichette.forEach((t, i) => {
+      const p = this.giocatori[i];
+      // le etichette stanno a due quote diverse: se i due si sovrappongono restano leggibili
+      t.setVisible(!p.morto).setPosition(pix(p.x), pix(p.y - 62 - i * 9));
+    });
     this.aggiornaCamera(dt);
     if (this.fase === 'strada') this.aggiornaStrada();
     for (const e of this.nemici) e.update(dt);
@@ -274,17 +318,16 @@ export class GameScene extends Phaser.Scene implements World {
     this.pulisci();
     this.gestisciMorte(dt);
     this.aggiornaHud();
-    this.ctrl.flush();
+    flush();
   }
 
   private aggiornaCamera(dt: number): void {
-    const p = this.giocatore;
     if (this.arena) {
       // smorzamento esponenziale: stessa curva a 30, 60 o 144 fotogrammi al secondo
       this.camX = Phaser.Math.Linear(this.camX, this.arena.x, 1 - Math.exp(-5 * dt));
       if (Math.abs(this.camX - this.arena.x) < 0.5) this.camX = this.arena.x;
     } else {
-      const voluto = Math.min(p.x - 150, this.bloccoDx - VIEW_W);
+      const voluto = Math.min(this.xGuida() - 150, this.bloccoDx - VIEW_W);
       if (voluto > this.camX) {
         // Si va solo avanti, come in Metal Slug, ma MAI di scatto. Quando un'ondata
         // finisce, il blocco si toglie di colpo e il giocatore è spesso appiccicato al
@@ -307,16 +350,16 @@ export class GameScene extends Phaser.Scene implements World {
   }
 
   private aggiornaStrada(): void {
-    const p = this.giocatore;
+    const xg = this.xGuida();
     // ondate
-    if (this.onda < WAVES.length && p.x > WAVES[this.onda].x) {
+    if (this.onda < WAVES.length && xg > WAVES[this.onda].x) {
       if (this.onda === CHECKPOINT_ONDA && this.st.checkpoint !== 'giova') { this.st.checkpoint = 'meta'; this.annuncio('CHECKPOINT!', 'SE PERDETE RIPARTITE DA QUI'); }
       const w = WAVES[this.onda++];
       this.bloccoDx = this.camX + VIEW_W + 40;
       for (const n of w.nemici) {
         this.time.delayedCall(n.ritardo * 1000, () => {
           const x = n.xFisso ?? (n.lato === 'dx' ? this.camX + VIEW_W + 24 : this.camX - 24);
-          const e = this.spawn(n.tipo, x, (w.fretta ?? 1) * this.diff.aggressivita);
+          const e = this.spawn(n.tipo, x, (w.fretta ?? 1) * this.aggressivita());
           // chi è sul balcone non blocca l'avanzata: si può ignorare o abbattere sparando in alto
           if (n.tipo !== 'balcone') this.ondaViva.push(e);
         });
@@ -332,17 +375,19 @@ export class GameScene extends Phaser.Scene implements World {
       // Un nemico rimasto alle spalle tiene chiuso il cancello dell'ondata mentre il
       // giocatore e' incollato al bordo destro e guarda a destra: senza un segnale
       // sembra che il gioco si sia bloccato. Dopo 2,5 s compare una freccia a sinistra.
-      const tutti = this.ondaViva.filter((e) => !e.morto).every((e) => e.x < p.x - 20);
+      const xr = this.xRetro();
+      const tutti = this.ondaViva.filter((e) => !e.morto).every((e) => e.x < xr - 20);
       this.dietroT = tutti ? this.dietroT + 1 / 60 : 0;
       if (this.dietroT > 2.5) { this.dietroT = -3; this.segnalaDietro(); }
       else if (this.dietroT < 0) this.dietroT += 1 / 60;
     }
     // arena di Giova davanti al bar
     const arenaX = Math.round(BG.street.barX + (BG.street.barW - VIEW_W) / 2);
-    if (!this.arena && !this.giovaArrivato && this.onda >= WAVES.length && this.bloccoDx === Infinity && p.x > arenaX + 90) {
+    if (!this.arena && !this.giovaArrivato && this.onda >= WAVES.length && this.bloccoDx === Infinity && xg > arenaX + 90) {
       this.arena = { x: arenaX }; this.giovaArrivato = true; this.st.checkpoint = 'giova';
       this.time.delayedCall(700, () => {
         this.boss = new Giova(this, arenaX + VIEW_W + 40);
+        this.scalaBoss(this.boss, 1.5);
         this.colpitoNelBoss = false;
         this.boss.onMorte = () => { parla('giova', 'muore', 1, 0); this.bonusPerfetto(); };
         this.mostraBossHud();
@@ -354,10 +399,10 @@ export class GameScene extends Phaser.Scene implements World {
       this.hud.boss.setVisible(false);
       if (!this.hud.go.visible) { this.mostraGo('ENTRA NEL BAR'); }
       this.arena = null; this.bloccoDx = Infinity;
-      if (p.x > this.larghezza - 30) {
+      if (xg > this.larghezza - 30) {
         this.uscita = true;
         this.cameras.main.fadeOut(600);
-        this.cameras.main.once('camerafadeoutcomplete', () => this.scene.restart({ fase: 'cantina', stato: this.statoGiocatore() }));
+        this.cameras.main.once('camerafadeoutcomplete', () => this.scene.restart({ fase: 'cantina', stato: this.statoGiocatore(), eroi: this.eroi.map((h) => h.id) }));
       }
     }
   }
@@ -372,6 +417,13 @@ export class GameScene extends Phaser.Scene implements World {
   private ondaPronta = true;
   private giovaArrivato = false;
 
+  /** In due i nemici attaccano un po' piu' spesso e i boss hanno piu' vita: due pistole fanno il doppio del danno. */
+  private aggressivita(): number { return this.diff.aggressivita * (this.eroi.length > 1 ? 1.15 : 1); }
+  private scalaBoss(b: BossBase, k2: number): void {
+    if (this.eroi.length < 2) return;
+    b.vitaMax = Math.round(b.vitaMax * k2); b.vita = b.vitaMax;
+  }
+
   private spawn(tipo: EnemyType, x: number, fretta = 1): Enemy {
     const def = ENEMIES[tipo];
     const e = new Enemy(this, def, Phaser.Utils.Array.GetRandom(def.sheets), x, fretta);
@@ -380,7 +432,6 @@ export class GameScene extends Phaser.Scene implements World {
   }
 
   private aggiornaProiettili(dt: number): void {
-    const p = this.giocatore;
     for (const b of this.proiettili) {
       b.update(dt);
       if (b.morto) {
@@ -391,7 +442,9 @@ export class GameScene extends Phaser.Scene implements World {
       const x = b.sprite.x, y = b.sprite.y;
       if (x < this.camX - 30 || x > this.camX + VIEW_W + 30) { b.morto = true; continue; }
       if (b.o.ostile) {
-        if (!p.morto && Phaser.Geom.Intersects.LineToRectangle(new Phaser.Geom.Line(b.px, b.py, x, y), p.box())) {
+        const tratto2 = new Phaser.Geom.Line(b.px, b.py, x, y);
+        const p = this.giocatori.find((q) => !q.morto && Phaser.Geom.Intersects.LineToRectangle(tratto2, q.box()));
+        if (p) {
           p.danno(b.o.danno); b.morto = true;
           if (b.o.tex === 'bottiglia') this.cocci(x, y);
         }
@@ -401,18 +454,18 @@ export class GameScene extends Phaser.Scene implements World {
       for (const pr of this.props) {
         if (pr.vita <= 0 || !Phaser.Geom.Intersects.LineToRectangle(tratto, pr.s.getBounds())) continue;
         if (b.o.esplosivo) { b.morto = true; break; }
-        this.dannoProp(pr, b.o.danno); if (!b.o.perforante) { b.morto = true; break; }
+        this.dannoProp(pr, b.o.danno, b.o.chi ?? 0); if (!b.o.perforante) { b.morto = true; break; }
       }
       if (b.morto) { if (b.o.esplosivo) this.esplodi(b); continue; }
       for (const e of this.nemici) {
         if (e.morto || b.colpiti.has(e) || !Phaser.Geom.Intersects.LineToRectangle(tratto, e.box())) continue;
         if (b.o.esplosivo) { b.morto = true; break; }
-        e.danno(b.o.danno, Math.sign(b.vx)); b.colpiti.add(e); this.scintilla(x, y);
+        e.danno(b.o.danno, Math.sign(b.vx), false, b.o.chi ?? 0); b.colpiti.add(e); this.scintilla(x, y);
         if (!b.o.perforante) { b.morto = true; break; }
       }
       if (!b.morto && this.boss && !this.boss.morto && this.boss.attivo && !b.colpiti.has(this.boss) && Phaser.Geom.Intersects.LineToRectangle(tratto, this.boss.box())) {
         if (b.o.esplosivo) b.morto = true;
-        else { this.boss.danno(b.o.danno); b.colpiti.add(this.boss); if (!b.o.perforante) b.morto = true; }
+        else { this.boss.danno(b.o.danno, b.o.chi ?? 0); b.colpiti.add(this.boss); if (!b.o.perforante) b.morto = true; }
         if (!b.o.esplosivo) this.scintilla(x, y);
       }
       if (b.morto && b.o.esplosivo) this.esplodi(b);
@@ -423,26 +476,27 @@ export class GameScene extends Phaser.Scene implements World {
     b.o.tex = 'esploso';
     const x = b.sprite.x, y = Math.min(b.sprite.y, GROUND_Y - 4), r = b.o.esplosivo ?? 30;
     this.boom(x, y, r > 40);
-    for (const e of this.nemici) if (!e.morto && Math.hypot(e.x - x, e.y - 24 - y) < r + 14) e.danno(b.o.danno, Math.sign(e.x - x));
-    if (this.boss && !this.boss.morto && Math.abs(this.boss.x - x) < r + 30) this.boss.danno(b.o.danno);
-    for (const pr of this.props) if (pr.vita > 0 && Math.abs(pr.s.x - x) < r + 10) this.dannoProp(pr, 99);
+    const chi = b.o.chi ?? 0;
+    for (const e of this.nemici) if (!e.morto && Math.hypot(e.x - x, e.y - 24 - y) < r + 14) e.danno(b.o.danno, Math.sign(e.x - x), false, chi);
+    if (this.boss && !this.boss.morto && Math.abs(this.boss.x - x) < r + 30) this.boss.danno(b.o.danno, chi);
+    for (const pr of this.props) if (pr.vita > 0 && Math.abs(pr.s.x - x) < r + 10) this.dannoProp(pr, 99, chi);
   }
 
   // ------------------------------------------------------------------ oggetti distruttibili
-  private dannoProp(pr: Prop, n: number): void {
+  private dannoProp(pr: Prop, n: number, chi = 0): void {
     if (pr.vita <= 0 || !pr.s.active) return; // già distrutto (es. due esplosioni vicine in catena)
     pr.vita -= n;
     pr.s.setTint(0xffffff).setTintMode(Phaser.TintModes.FILL);
     this.time.delayedCall(50, () => pr.s.active && pr.s.setTintMode(Phaser.TintModes.MULTIPLY));
     if (pr.vita > 0) { sfx('nemicoColpito'); return; }
     const x = pr.s.x, y = pr.s.y - pr.s.height / 2;
-    this.punti(Math.round(50 * this.diff.punti), x, y - 10);
+    this.punti(Math.round(50 * this.diff.punti), x, y - 10, chi);
     if (pr.rompe === 'esplode') {
       this.boom(x, y, true);
-      for (const e of this.nemici) if (!e.morto && Math.abs(e.x - x) < 50) e.danno(80, Math.sign(e.x - x));
-      if (this.boss && !this.boss.morto && Math.abs(this.boss.x - x) < 60) this.boss.danno(60);
-      const p = this.giocatore; if (!p.morto && Math.abs(p.x - x) < 34) p.danno(15);
-      for (const q of this.props) if (q !== pr && q.vita > 0 && Math.abs(q.s.x - x) < 60) this.time.delayedCall(150, () => this.dannoProp(q, 99));
+      for (const e of this.nemici) if (!e.morto && Math.abs(e.x - x) < 50) e.danno(80, Math.sign(e.x - x), false, chi);
+      if (this.boss && !this.boss.morto && Math.abs(this.boss.x - x) < 60) this.boss.danno(60, chi);
+      for (const p of this.giocatori) if (!p.morto && Math.abs(p.x - x) < 34) p.danno(15);
+      for (const q of this.props) if (q !== pr && q.vita > 0 && Math.abs(q.s.x - x) < 60) this.time.delayedCall(150, () => this.dannoProp(q, 99, chi));
     } else {
       sfx('nemicoMorto'); this.hitstop(0.05); this.scuoti(110, 2);
       const tex = pr.rompe === 'vetro' ? 'px' : 'scheggia';
@@ -459,9 +513,9 @@ export class GameScene extends Phaser.Scene implements World {
     pr.s.destroy();
   }
   private aggiornaPremi(): void {
-    const p = this.giocatore;
     for (const q of this.premi) {
-      if (!q.s.active || p.morto || Math.abs(q.s.x - p.x) > 12 || p.y < GROUND_Y - 20) continue;
+      const p = this.giocatori.find((g) => !g.morto && Math.abs(q.s.x - g.x) <= 12 && g.y >= GROUND_Y - 20);
+      if (!q.s.active || !p) continue;
       sfx('raccolta');
       if (q.tipo === 'bombe') { p.bombe += 5; this.testo(p.x, p.y - 62, 'BOMBE +5', '#80ff80'); }
       else { p.vita = Math.min(p.vitaMax, p.vita + 30); this.testo(p.x, p.y - 62, 'GELATO! +VITA', '#80ff80'); }
@@ -495,10 +549,10 @@ export class GameScene extends Phaser.Scene implements World {
   }
 
   private aggiornaCasse(): void {
-    const p = this.giocatore;
     for (const c of this.casse) {
-      if (!c.s.active || p.morto) continue;
-      if (Math.abs(c.s.x - p.x) < 14 && p.y > GROUND_Y - 20) {
+      if (!c.s.active) continue;
+      const p = this.giocatori.find((g) => !g.morto && Math.abs(c.s.x - g.x) < 14 && g.y > GROUND_Y - 20);
+      if (p) {
         p.prendiArma(c.arma); sfx('raccolta');
         this.testo(p.x, p.y - 62, WEAPONS[c.arma].nome + '!', '#80ff80');
         this.apriCassa(c.s.x);
@@ -535,37 +589,49 @@ export class GameScene extends Phaser.Scene implements World {
   }
 
   private gestisciMorte(dt: number): void {
-    const p = this.giocatore;
     // a partita finita (vittoria o game over già deciso) niente più rinascite né vite perse
-    if (p.morto && this.rinascitaT < 0 && !this.finito) this.rinascitaT = 1.6;
-    if (this.rinascitaT >= 0 && !this.finito) {
-      this.rinascitaT -= dt;
-      if (this.rinascitaT < 0) {
-        this.st.vite--;
-        if (this.st.vite <= 0) this.apriContinua();
-        else { p.rinasci(this.camX + 70); this.testo(p.x, GROUND_Y - 80, 'FORZA!', '#80ff80'); }
+    this.giocatori.forEach((p, i) => {
+      if (p.fuori) return;
+      if (p.morto && this.rinascitaT[i] < 0 && !this.finito) this.rinascitaT[i] = 1.6;
+      if (this.rinascitaT[i] < 0 || this.finito) return;
+      this.rinascitaT[i] -= dt;
+      if (this.rinascitaT[i] >= 0) return;
+      const g = this.st.g[i];
+      g.vite--;
+      if (g.vite <= 0) {
+        // senza vite: resta fuori. Se c'e' ancora un compagno in gioco si va avanti in uno,
+        // altrimenti parte il CONTINUE per tutti.
+        p.fuori = true; p.sprite.setVisible(false);
+        this.testo(p.x, GROUND_Y - 80, this.giocatori.length > 1 ? `${i + 1}P FUORI!` : 'FINITO!', '#ff8080');
+        if (this.giocatori.every((q) => q.fuori)) this.apriContinua();
+      } else {
+        // il secondo rientra un po' piu' in la', cosi' i due non nascono sovrapposti
+        p.rinasci(this.camX + 70 + i * 40); this.testo(p.x, GROUND_Y - 80, 'FORZA!', '#80ff80');
       }
-    }
+    });
     // vittoria finale
     if (this.fase === 'cantina' && this.boss?.morto && !this.finito && this.boss.mortoT > 1.2) {
-      p.vince = true; this.finito = true; this.hud.boss.setVisible(false);
-      const bonus = Math.max(0, Math.round(3000 - this.st.tempo * 10)) + this.st.vite * 1000;
-      this.punti(bonus);
-      this.annuncio('MISSIONE COMPIUTA!', `BONUS ${bonus}`);
+      this.giocatori.forEach((p) => { p.vince = true; });
+      this.finito = true; this.hud.boss.setVisible(false);
+      const tempoBonus = Math.max(0, Math.round(3000 - this.st.tempo * 10));
+      this.giocatori.forEach((_, i) => this.punti(tempoBonus + Math.max(0, this.st.g[i].vite) * 1000, undefined, undefined, i));
+      this.annuncio('MISSIONE COMPIUTA!', `BONUS TEMPO ${tempoBonus} + VITE`);
       this.time.delayedCall(3200, () => this.fine(true));
     }
   }
 
   private fine(vittoria: boolean): void {
     this.finito = true;
-    const r: Risultato = { vittoria, punti: this.st.punti, tempo: this.st.tempo, nome: this.hero.nome };
+    const r: Risultato = {
+      vittoria, tempo: this.st.tempo,
+      giocatori: this.eroi.map((h, i) => ({ nome: h.nome, punti: this.st.g[i].punti })),
+    };
     this.cameras.main.fadeOut(500);
     this.cameras.main.once('camerafadeoutcomplete', () => this.scene.start('Result', r));
   }
 
   private statoGiocatore(): Stato {
-    const p = this.giocatore;
-    return { ...this.st, arma: p.arma.id, munizioni: p.munizioni, bombe: p.bombe };
+    return { ...this.st, g: this.giocatori.map((p, i) => ({ ...this.st.g[i], arma: p.arma.id, munizioni: p.munizioni, bombe: p.bombe })) };
   }
 
   // ------------------------------------------------------------------ cantina
@@ -586,6 +652,7 @@ export class GameScene extends Phaser.Scene implements World {
       this.finito = false;
       musica('battaglia-ettore');
       const e = new Ettore(this, this.camX + VIEW_W + 40); // appena fuori dallo schermo, non in fondo alla cantina
+      this.scalaBoss(e, 1.6);
       e.onFase2 = () => {
         // a 62% di vita chiama rinforzi
         this.time.delayedCall(400, () => { this.spawn('gelataio', this.camX - 20); this.spawn('gelataio', this.camX + VIEW_W + 20); });
@@ -605,7 +672,7 @@ export class GameScene extends Phaser.Scene implements World {
   private bonusPerfetto(): void {
     if (this.colpitoNelBoss) return;
     const n = Math.round(3000 * this.diff.punti);
-    this.time.delayedCall(900, () => { this.punti(n); this.annuncio('PERFETTO!', `NESSUN COLPO SUBITO +${n}`, 44); });
+    this.time.delayedCall(900, () => { this.giocatori.forEach((_, i) => this.punti(n, undefined, undefined, i)); this.annuncio('PERFETTO!', `NESSUN COLPO SUBITO +${n}`, 44); });
   }
 
   // ------------------------------------------------------------------ continue (come in sala giochi)
@@ -616,20 +683,22 @@ export class GameScene extends Phaser.Scene implements World {
     c.add(txt(this, VIEW_W / 2, 64, 'CONTINUE?', 22, '#ffe066').setOrigin(0.5));
     const t = txt(this, VIEW_W / 2, 104, '9', 28, '#ff6060').setOrigin(0.5);
     c.add(t);
-    c.add(txt(this, VIEW_W / 2, 150, this.fase === 'cantina' ? 'INVIO: RIPARTI DALLA CANTINA' : 'INVIO: RIPARTI DALLA STRADA', 9).setOrigin(0.5));
+    c.add(txt(this, VIEW_W / 2, 150, this.fase === 'cantina' ? 'INVIO O TOCCO: RIPARTI DALLA CANTINA' : 'INVIO O TOCCO: RIPARTI DALLA STRADA', 9).setOrigin(0.5));
     c.add(txt(this, VIEW_W / 2, 164, 'I PUNTI RESTANO, SI RIPARTE CON LA PISTOLA', 8, '#c8d0e0').setOrigin(0.5));
     this.continua = { c, t, n: 9, acc: 0, aperto: 0 };
+    // da touch: un tocco sul campo (fuori dai pulsanti) conferma, come INVIO
+    this.input.on('pointerdown', () => { if (this.continua && this.continua.aperto > 0.5) this.continua.toccato = true; });
     sfx('allarme');
   }
-  private aggiornaContinua(dt: number, inp: { confermaTap: boolean; fuoco: boolean; saltoTap: boolean }): void {
+  private aggiornaContinua(dt: number, inp: { confermaTap: boolean }): void {
     const k = this.continua!; k.acc += dt; k.aperto += dt;
     // mezzo secondo di attesa: chi stava martellando il tasto di fuoco (J) non continua per sbaglio
-    if (inp.confermaTap && k.aperto > 0.5) {
+    if ((inp.confermaTap || k.toccato) && k.aperto > 0.5) {
       this.st.crediti++;
-      const stato: Stato = { ...this.st, vite: this.diff.vite, arma: 'pistola', munizioni: -1, bombe: 10 };
+      const stato: Stato = { ...this.st, g: this.st.g.map((q) => ({ ...nuovoPStato(this.diff.vite), punti: q.punti })) };
       this.continua = null;
       this.cameras.main.fadeOut(300);
-      this.cameras.main.once('camerafadeoutcomplete', () => this.scene.restart({ fase: this.fase, stato }));
+      this.cameras.main.once('camerafadeoutcomplete', () => this.scene.restart({ fase: this.fase, stato, eroi: this.eroi.map((h) => h.id) }));
       return;
     }
     if (k.acc >= 1) {
@@ -640,37 +709,51 @@ export class GameScene extends Phaser.Scene implements World {
   }
 
   // ------------------------------------------------------------------ HUD (in stile Metal Slug)
+  /** Un giocatore: punteggio, barra della vita, vite, riquadro ARMS/BOMB. `ox` = spostamento orizzontale. */
+  private creaBlocco(i: number, ox: number, due: boolean): { vita: Phaser.GameObjects.Image[]; vite: PixelText; punti: PixelText; armi: PixelText; bombe: PixelText; armaNome: PixelText; icona: Phaser.GameObjects.Image } {
+    const D = 100;
+    const fix = <T extends Phaser.GameObjects.GameObject & { setScrollFactor: (n: number) => T; setDepth: (n: number) => T }>(o: T): T => o.setScrollFactor(0).setDepth(D);
+    const col = COLORE_G[i];
+    const punti = fix(txt(this, ox + 106, 2, '0', 10, '#ffffff').setOrigin(1, 0));
+    if (due) fix(txt(this, ox + 4, 2, `${i + 1}P`, 10, col));
+    fix(this.add.rectangle(ox + 4, 12, 103, 8, 0x0a0c18).setOrigin(0).setStrokeStyle(1, due ? Phaser.Display.Color.HexStringToColor(col).color : 0x7890c0));
+    const vita = [] as Phaser.GameObjects.Image[];
+    for (let k = 0; k < 20; k++) vita.push(fix(this.add.image(ox + 6 + k * 5, 13, 'seg').setOrigin(0)));
+    const vite = fix(txt(this, ox + 4, 22, '1UP=3', 9, '#ffe066'));
+    fix(this.add.rectangle(ox + 112, 2, 70, 22, 0x0a0c18, 0.75).setOrigin(0).setStrokeStyle(1, 0x7890c0));
+    fix(txt(this, ox + 115, 4, 'ARMS', 8, '#80d0ff'));
+    fix(txt(this, ox + 150, 4, 'BOMB', 8, '#80d0ff'));
+    const armi = fix(txt(this, ox + 128, 13, '∞', 9, '#ffe066').setOrigin(0.5, 0));
+    const bombe = fix(txt(this, ox + 162, 13, '10', 9, '#ffe066').setOrigin(0.5, 0));
+    const icona = fix(img(this, ox + 113, 26, 'icona_pistola', 'px').setOrigin(0, 0));
+    if (FX.icona_bomba) fix(img(this, ox + 175, 13, 'icona_bomba', 'px', 0.6).setOrigin(0.5, 0));
+    const armaNome = fix(txt(this, ox + (FX.icona_pistola ? 133 : 113), 28, '', 8, '#c0ffc0'));
+    return { vita, vite, punti, armi, bombe, armaNome, icona };
+  }
+
   private creaHud(): void {
     const D = 100;
     const fix = <T extends Phaser.GameObjects.GameObject & { setScrollFactor: (n: number) => T; setDepth: (n: number) => T }>(o: T): T => o.setScrollFactor(0).setDepth(D);
+    const due = this.eroi.length === 2;
     // fascia scura dietro l'HUD: i numeri restano leggibili anche sulle facciate chiare
     fix(this.add.rectangle(0, 0, VIEW_W, 34, 0x000000, 0.45).setOrigin(0));
-    // sinistra: punteggio, barra della vita, vite
-    const punti = fix(txt(this, 106, 2, '0', 10, '#ffffff').setOrigin(1, 0));
-    fix(this.add.rectangle(4, 12, 103, 8, 0x0a0c18).setOrigin(0).setStrokeStyle(1, 0x7890c0));
-    const vita = [] as Phaser.GameObjects.Image[];
-    for (let i = 0; i < 20; i++) vita.push(fix(this.add.image(6 + i * 5, 13, 'seg').setOrigin(0)));
-    const vite = fix(txt(this, 4, 22, '1UP=3', 9, '#ffe066'));
-    // riquadro ARMS / BOMB
-    fix(this.add.rectangle(112, 2, 70, 22, 0x0a0c18, 0.75).setOrigin(0).setStrokeStyle(1, 0x7890c0));
-    fix(txt(this, 115, 4, 'ARMS', 8, '#80d0ff'));
-    fix(txt(this, 150, 4, 'BOMB', 8, '#80d0ff'));
-    const armi = fix(txt(this, 128, 13, '∞', 9, '#ffe066').setOrigin(0.5, 0));
-    const bombe = fix(txt(this, 162, 13, '10', 9, '#ffe066').setOrigin(0.5, 0));
-    const icona = fix(img(this, 113, 26, 'icona_pistola', 'px').setOrigin(0, 0));
-    if (FX.icona_bomba) fix(img(this, 175, 13, 'icona_bomba', 'px', 0.6).setOrigin(0.5, 0));
-    const armaNome = fix(txt(this, FX.icona_pistola ? 133 : 113, 28, '', 8, '#c0ffc0'));
-    // centro: tempo grande
-    const tempo = fix(txt(this, VIEW_W / 2 + 20, 2, '0:00', 16, '#ffe066').setOrigin(0.5, 0));
-    const combo = fix(txt(this, VIEW_W / 2 + 20, 24, '', 9, '#ff6060').setOrigin(0.5, 0).setVisible(false));
-    // destra: ritratto e nome
-    fix(this.add.rectangle(VIEW_W - 34, 2, 30, 30, 0x0a0c18).setOrigin(0).setStrokeStyle(1, 0xffe066));
-    const sh = SHEETS[`hero_${this.hero.id}`];
-    const ritr = fix(this.add.sprite(VIEW_W - 19, 0, `sh_hero_${this.hero.id}`, sh.frames.indexOf('idle')).setOrigin(0.5, 0));
-    const top = Math.max(0, sh.foot - 56 * sh.d);
-    ritr.setScale(1 / sh.d).setCrop(sh.cw / 2 - 14 * sh.d, top, 28 * sh.d, 29 * sh.d); ritr.y = 3 - top / sh.d;
-    fix(txt(this, VIEW_W - 37, 4, this.hero.nome, 8, '#ffffff').setOrigin(1, 0));
-    fix(txt(this, VIEW_W - 37, 14, this.diff.nome, 8, '#c8d0e0').setOrigin(1, 0));
+    // sinistra: primo giocatore; in due, il secondo sta a destra con lo stesso disegno
+    const blocchi = this.eroi.map((_, i) => this.creaBlocco(i, i * 194, due));
+    // centro: tempo grande (in due va sotto la fascia: in alto non c'e' piu' posto)
+    const tempo = due
+      ? fix(txt(this, VIEW_W / 2, 36, '0:00', 10, '#ffe066').setOrigin(0.5, 0))
+      : fix(txt(this, VIEW_W / 2 + 20, 2, '0:00', 16, '#ffe066').setOrigin(0.5, 0));
+    const combo = fix(txt(this, due ? VIEW_W / 2 : VIEW_W / 2 + 20, due ? 46 : 24, '', 9, '#ff6060').setOrigin(0.5, 0).setVisible(false));
+    // destra (un solo giocatore): ritratto e nome
+    if (!due) {
+      fix(this.add.rectangle(VIEW_W - 34, 2, 30, 30, 0x0a0c18).setOrigin(0).setStrokeStyle(1, 0xffe066));
+      const sh = SHEETS[`hero_${this.hero.id}`];
+      const ritr = fix(this.add.sprite(VIEW_W - 19, 0, `sh_hero_${this.hero.id}`, sh.frames.indexOf('idle')).setOrigin(0.5, 0));
+      const top = Math.max(0, sh.foot - 56 * sh.d);
+      ritr.setScale(1 / sh.d).setCrop(sh.cw / 2 - 14 * sh.d, top, 28 * sh.d, 29 * sh.d); ritr.y = 3 - top / sh.d;
+      fix(txt(this, VIEW_W - 37, 4, this.hero.nome, 8, '#ffffff').setOrigin(1, 0));
+      fix(txt(this, VIEW_W - 37, 14, this.diff.nome, 8, '#c8d0e0').setOrigin(1, 0));
+    }
     // barra del boss in basso
     const boss = this.add.container(VIEW_W / 2 - 66, VIEW_H - 14).setScrollFactor(0).setDepth(D).setVisible(false);
     boss.add(this.add.rectangle(-2, -2, 134, 10, 0x0a0c18).setOrigin(0).setStrokeStyle(1, 0xc04040));
@@ -682,7 +765,7 @@ export class GameScene extends Phaser.Scene implements World {
     const go = this.add.container(VIEW_W - 50, 70).setScrollFactor(0).setDepth(D).setVisible(false);
     go.add(txt(this, 0, 0, 'AVANTI', 13, '#ffe066').setOrigin(0.5));
     go.add(this.add.image(0, 18, 'freccia'));
-    this.hud = { vita, vite, punti, armi, bombe, armaNome, icona, tempo, combo, boss, bossSeg, pausa, go };
+    this.hud = { blocchi, tempo, combo, boss, bossSeg, pausa, go };
   }
   private mostraGo(testo = 'AVANTI'): void {
     const g = this.hud.go; (g.list[0] as PixelText).setText(testo).setOrigin(0.5);
@@ -706,17 +789,19 @@ export class GameScene extends Phaser.Scene implements World {
     this.tweens.add({ targets: [t1, t2], alpha: 0, delay: 2000, duration: 500, onComplete: () => { t1.destroy(); t2.destroy(); } });
   }
   private aggiornaHud(): void {
-    const p = this.giocatore;
-    const n = Math.ceil((Math.max(0, p.vita) / p.vitaMax) * 20);
-    this.hud.vita.forEach((sg, i) => sg.setTexture(i < n ? 'seg' : 'seg_vuoto'));
-    this.hud.vite.setText(`1UP=${Math.max(0, this.st.vite)}`);
-    this.hud.punti.setText(String(this.st.punti));
-    this.hud.armi.setText(p.munizioni < 0 ? '∞' : String(p.munizioni));
-    this.hud.bombe.setText(String(p.bombe));
-    this.hud.armaNome.setText(p.arma.id === 'pistola' ? '' : p.arma.nome);
-    const ic = fxTex(`icona_${p.arma.id}`, 'px');
-    if (this.hud.icona.texture.key !== ic.key) this.hud.icona.setTexture(ic.key).setScale(ic.s);
-    this.hud.icona.setVisible(!!FX[`icona_${p.arma.id}`]);
+    this.giocatori.forEach((p, i) => {
+      const h = this.hud.blocchi[i], g = this.st.g[i];
+      const n = Math.ceil((Math.max(0, p.vita) / p.vitaMax) * 20);
+      h.vita.forEach((sg, k) => sg.setTexture(k < n ? 'seg' : 'seg_vuoto'));
+      h.vite.setText(p.fuori ? 'FUORI' : `1UP=${Math.max(0, g.vite)}`);
+      h.punti.setText(String(g.punti));
+      h.armi.setText(p.munizioni < 0 ? '∞' : String(p.munizioni));
+      h.bombe.setText(String(p.bombe));
+      h.armaNome.setText(p.arma.id === 'pistola' ? '' : p.arma.nome);
+      const ic = fxTex(`icona_${p.arma.id}`, 'px');
+      if (h.icona.texture.key !== ic.key) h.icona.setTexture(ic.key).setScale(ic.s);
+      h.icona.setVisible(!!FX[`icona_${p.arma.id}`]);
+    });
     const m = Math.floor(this.st.tempo / 60), sec = Math.floor(this.st.tempo % 60);
     this.hud.tempo.setText(`${m}:${String(sec).padStart(2, '0')}`);
     if (this.boss) {

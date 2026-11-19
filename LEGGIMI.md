@@ -1,20 +1,39 @@
-# Bar Bucaneve - prototipo 1.0
+# Bar Bucaneve - prototipo 1.1
 
 Aprite `bar-bucaneve.html` con Chrome, Edge o Firefox (doppio clic). Non serve installare nulla, non serve internet.
 
 ## Comandi
+Nel menu iniziale scegliete **1 GIOCATORE** o **2 GIOCATORI** (frecce su/giù e Invio, oppure subito i tasti 1 e 2).
+
+### Un giocatore
 | Tasto | Azione |
 | --- | --- |
 | Frecce (o WASD) | muoversi, freccia giù = accovacciarsi, freccia su = sparare in alto |
-| J (o Z) | sparare; da vicino diventa un pugno |
+| J (o M, Z) | sparare; da vicino diventa un pugno |
 | K (o X, Spazio) | saltare |
 | L (o C) | bomba |
 | I | pugno |
+
+### Due giocatori, stessa tastiera
+| | muoversi | sparare | saltare | bomba | pugno |
+| --- | --- | --- | --- | --- | --- |
+| **Giocatore 1** | frecce | M | L | K | J |
+| **Giocatore 2** | W A S D | 1 | 2 | 3 | 4 |
+
+Ognuno ha le sue vite, i suoi punti, la sua arma. Sopra la testa c'è l'etichetta 1P / 2P. Chi resta senza vite aspetta fuori; se cadono tutti e due, CONTINUE. Ettore e Giova hanno più vita quando siete in due.
+
+### Per tutti
+| Tasto | Azione |
+| --- | --- |
 | Esc (o P) | pausa; in pausa L accende/spegne l'audio |
 | F | schermo intero (anche durante la partita) |
 | Su/Giù nella scelta personaggio | difficoltà: FACILE, NORMALE, DIFFICILE |
-| Pad (Xbox) | levetta/croce muovi, A salta, X o dorsali sparano, B bomba, Y pugno, Start pausa |
 | Invio | conferma nei menu |
+| Pad (Xbox) | il primo pad è il giocatore 1, il secondo il giocatore 2: levetta/croce muovi, A salta, X o dorsali sparano, B bomba, Y pugno, Start pausa |
+
+### Telefono e tablet
+I comandi compaiono da soli: croce a sinistra (su = mirare in alto, giù = accovacciarsi), a destra SPARA, SALTA, BOMBA e PUGNO, in alto pausa (II) e schermo intero. Si possono premere più tasti insieme. Nei menu si tocca: sul titolo "1 GIOCATORE" o "2 GIOCATORI", sulla scelta si tocca il personaggio (due volte per confermare) e la scritta della difficoltà per cambiarla. In due giocatori i comandi touch sono del giocatore 1. Giocate in orizzontale; un tocco sul titolo mette anche lo schermo intero.
+Su un computer con schermo touch il pannello compare alla prima ditata e sparisce appena si usa la tastiera.
 
 ## Il livello
 1. Strada di Ponte Arche: gelatai (corrono addosso con la paletta) e ubriachi (lanciano bottiglie ad arco: saltate o spostatevi). Le casse danno armi nuove. **Bombole e fusti rossi esplodono**: sparateci quando ci passano accanto i nemici e ne porta via diversi in un colpo (ma state lontani, l'esplosione fa male anche a voi). Bidoni e cassonetti si sfasciano e a volte lasciano un premio. Regola pratica: le botte e le casse di legno fanno parte del disegno del fondale e non si rompono, tutto quello che è di metallo sì.
@@ -60,7 +79,7 @@ Aprite `bar-bucaneve.html` con Chrome, Edge o Firefox (doppio clic). Non serve i
 ## Novità della 0.6
 - Paolo giocabile.
 - La vostra grafica per casse armi (si aprono quando le prendete), proiettili, razzi, granate, lampi di sparo, esplosioni con cratere, scintille, polvere e icone delle armi nell'HUD.
-- Musica: "strada" in strada e da Giova, "battaglia-ettore" in cantina, resa in stile 8 bit; si abbassa quando parlano i personaggi.
+- Musica: "strada" in strada e da Giova, "battaglia-ettore" in cantina; si abbassa quando parlano i personaggi.
 - Niente più aloni chiari attorno ai personaggi; gli occhiali di Giova non sono più trasparenti.
 
 ## Novità della 0.7
@@ -73,3 +92,8 @@ Aprite `bar-bucaneve.html` con Chrome, Edge o Firefox (doppio clic). Non serve i
 ## Novità della 0.8
 - Musica della strada: il nuovo brano strumentale, reso suoneria polifonica 8 bit.
 - Ogni posa e ogni oggetto ritagliati e puliti sono in `estratti/`; per correggerne uno basta metterlo in `grafica/ritocchi/` (vedi `estratti/LEGGIMI.md`).
+
+## Novità della 1.1
+- Musica vera (i vostri mp3 interi, non più la suoneria a onde quadre), a volume basso rispetto a voci ed effetti.
+- Due giocatori sulla stessa tastiera, comandi touch per telefono e tablet, pad collegato davvero.
+- Ettore con più del doppio della vita e molto più rapido a sparare.

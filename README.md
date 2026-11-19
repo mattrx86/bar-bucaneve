@@ -1,4 +1,4 @@
-# Bar Bucaneve - prototipo 1.0
+# Bar Bucaneve - prototipo 1.1
 
 Run'n'gun stile Metal Slug. Strada di Ponte Arche (gelatai e ubriachi) -> Giova davanti al Bar Bucaneve -> Ettore in cantina.
 
@@ -6,7 +6,16 @@ Run'n'gun stile Metal Slug. Strada di Ponte Arche (gelatai e ubriachi) -> Giova 
 Scaricate `bar-bucaneve.html` e apritelo con doppio clic (Chrome, Edge o Firefox). Istruzioni in `LEGGIMI.md`.
 
 ## Comandi
-Frecce/WASD muovi, J/Z/Ctrl spara (da vicino: pugno), K/X/Spazio salta, L/C bomba, I pugno, Esc/P pausa (in pausa L = audio).
+**Un giocatore**: frecce/WASD muovi, J/M/Z/Ctrl spara (da vicino: pugno), K/X/Spazio salta, L/C bomba, I pugno, Esc/P pausa (in pausa L = audio).
+
+**Due giocatori sulla stessa tastiera** (nel menu: "2 GIOCATORI" o tasto 2):
+
+| | muove | spara | salta | bomba | pugno |
+| --- | --- | --- | --- | --- | --- |
+| **1P** | frecce | M | L | K | J |
+| **2P** | W A S D | 1 | 2 | 3 | 4 |
+
+**Touch** (telefono/tablet): croce a sinistra, SPARA/SALTA/BOMBA/PUGNO a destra, pausa e schermo intero in alto. Compare da solo su schermi touch.
 
 ## Struttura
 - `grafica/`: **i file originali** (fogli sprite, fondali, oggetti, voci). Qui caricano gli amici; istruzioni in `grafica/LEGGIMI.md`.
@@ -17,6 +26,13 @@ Frecce/WASD muovi, J/Z/Ctrl spara (da vicino: pugno), K/X/Spazio salta, L/C bomb
 - `src/entities.ts`: giocatore, nemici, Giova, Ettore.
 - `src/scenes/`: Boot, Title, Select, Game (fasi strada e cantina), Result.
 - `richieste/`: **richieste di modifica degli amici** (istruzioni + materiali). Le eseguo solo quando me lo dite; vedi `richieste/LEGGIMI.md`.
+
+## Novità 1.1
+- **Musica**: ora si usano i brani veri (`grafica/musica/*.mp3`), interi e non più trasformati in suoneria a onde quadre. Il build li ricomprime in mp3 stereo a 80 kbit e li porta tutti allo stesso livello (loudnorm -16 LUFS); in gioco suonano a volume basso (`VOL_MUSICA` in `src/core/audio.ts`, 0,25), sotto a voci ed effetti, e si abbassano ancora mentre parla un personaggio. `tools/chiptune.py` resta nel progetto ma non è più usato.
+- **Due giocatori sulla stessa tastiera**: punti, vite, armi e barra della vita separati; la camera segue chi è più avanti; chi finisce le vite resta fuori finché l'altro è vivo, se cadono entrambi parte il CONTINUE. Ettore prende di mira uno dei due a caso a ogni attacco, e le bottiglie cadono su entrambi. In due i boss hanno più vita (Giova x1,5, Ettore x1,6) e i nemici attaccano un po' più spesso (x1,15). In classifica entra ogni giocatore col suo punteggio.
+- **Comandi touch**: pannello HTML sopra il gioco (`src/core/touch.ts`), multi-touch vero (si muove, spara e salta insieme). Su telefono il primo tocco mette lo schermo intero e prova a bloccare l'orientamento orizzontale.
+- **Pad**: il supporto al pad era documentato ma non era mai collegato; ora il primo pad comanda 1P (e il menu) e il secondo comanda 2P.
+- **Ettore più duro**: vita da 1500 a 3200; cadenza di fuoco misurata da 22,7/29,6 a 36,9/45,3 scariche al minuto (fasi 1 e 2, riportate a 60 fps); una scarica in più prima di ricaricare in ogni fase, pause tra le serie e ricarica più corte, preavviso ridotto di circa 0,1 s (resta sopra 0,55 s). Il "!" prima di ogni attacco c'è sempre.
 
 ## Novità 1.0 (collaudo e messa a punto arcade)
 - **Scossa della camera**: era 9 volte più forte del previsto. `camera.shake()` moltiplica l'"intensità" per la larghezza del canvas (1152) e di nuovo per lo zoom: un colpo subito spostava lo schermo di 24 px logici (72 a schermo) e, siccome i fondali sono alti esattamente 216 px, scopriva il nero sopra e trascinava l'HUD. Ora `scuoti()` prende l'ampiezza **in pixel di gioco**, è solo orizzontale, cala nel tempo e resta dentro i bordi del mondo.

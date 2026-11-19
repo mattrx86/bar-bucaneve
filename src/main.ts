@@ -5,6 +5,8 @@ import { TitleScene } from './scenes/TitleScene';
 import { SelectScene } from './scenes/SelectScene';
 import { GameScene } from './scenes/GameScene';
 import { ResultScene } from './scenes/ResultScene';
+import { iniziaTouch } from './core/touch';
+import { unlockAudio } from './core/audio';
 
 const game = new Phaser.Game({
   type: Phaser.AUTO,
@@ -30,6 +32,9 @@ function adatta(): void {
   c.style.height = `${Math.round(VIEW_H * k)}px`;
   game.scale.refresh();
 }
+iniziaTouch();
+// Su telefono l'audio si sblocca solo dopo un gesto: il primo tocco (rilascio) lo attiva.
+window.addEventListener('pointerup', () => unlockAudio());
 window.addEventListener('resize', adatta);
 document.addEventListener('fullscreenchange', () => setTimeout(adatta, 50));
 game.events.once('ready', adatta);

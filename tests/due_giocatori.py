@@ -1,0 +1,58 @@
+"""Prova automatica: due giocatori sulla stessa tastiera. Uso: python3 tests/due_giocatori.py dist/index.html /tmp/out"""
+import sys, os, json
+from playwright.sync_api import sync_playwright
+HTML = sys.argv[1]; OUT = sys.argv[2]; os.makedirs(OUT, exist_ok=True)
+G = "window.__game.scene.getScene('Game')"
+with sync_playwright() as p:
+    b = p.chromium.launch(executable_path='/usr/bin/google-chrome', args=['--use-gl=angle','--use-angle=swiftshader','--enable-unsafe-swiftshader','--autoplay-policy=no-user-gesture-required'])
+    pg = b.new_page(viewport={'width':1152,'height':648}); errs=[]
+    pg.on('console', lambda m: errs.append(m.text) if m.type=='error' else None)
+    pg.on('pageerror', lambda e: errs.append(str(e)))
+    pg.goto('file://'+os.path.abspath(HTML)); pg.wait_for_timeout(2500)
+    pg.screenshot(path=f'{OUT}/01_titolo.png')
+    pg.keyboard.press('ArrowDown'); pg.wait_for_timeout(300); pg.screenshot(path=f'{OUT}/02_titolo2p.png')
+    pg.keyboard.press('Enter'); pg.wait_for_timeout(700)
+    pg.screenshot(path=f'{OUT}/03_sel1.png')
+    pg.keyboard.press('Enter'); pg.wait_for_timeout(700)
+    pg.screenshot(path=f'{OUT}/04_sel2.png')
+    pg.keyboard.press('Enter'); pg.wait_for_timeout(2500)
+    st = pg.evaluate(f"(()=>{{const g={G}; return {{n:g.giocatori.length, eroi:g.giocatori.map(p=>p.def.id), x:g.giocatori.map(p=>p.x)}}}})()")
+    print('inizio', st)
+    pg.screenshot(path=f'{OUT}/05_inizio.png')
+    # P1 destra+spara (frecce, M); P2 fermo e spara (1)
+    pg.keyboard.down('ArrowRight'); pg.keyboard.down('KeyM'); pg.keyboard.down('Digit1'); pg.wait_for_timeout(1500)
+    s1 = pg.evaluate(f"(()=>{{const g={G}; return {{x:g.giocatori.map(p=>Math.round(p.x)), cam:Math.round(g.camX), b:g.proiettili.length, ch:g.proiettili.map(b=>b.o.chi)}}}})()")
+    print('P1 corre, P2 fermo', s1)
+    pg.keyboard.up('ArrowRight')
+    # P2 salta con 2, si muove con D
+    pg.keyboard.down('KeyD'); pg.keyboard.press('Digit2'); pg.wait_for_timeout(300)
+    s2 = pg.evaluate(f"(()=>{{const g={G}; return {{x:g.giocatori.map(p=>Math.round(p.x)), y:g.giocatori.map(p=>Math.round(p.y))}}}})()")
+    print('P2 salta', s2)
+    pg.wait_for_timeout(700); pg.keyboard.up('KeyD'); pg.keyboard.up('KeyM'); pg.keyboard.up('Digit1')
+    pg.screenshot(path=f'{OUT}/06_gioco.png')
+    # un tasto non deve muovere l'altro: P1 L = salta (non bomba), P2 3 = bomba
+    pg.evaluate(f"(()=>{{const g={G}; g.giocatori[0].bombe=10; g.giocatori[1].bombe=10;}})()")
+    pg.keyboard.press('Digit3'); pg.wait_for_timeout(200)
+    bm = pg.evaluate(f"(()=>{{const g={G}; return g.giocatori.map(p=>p.bombe)}})()")
+    print('bombe dopo 3 (P2):', bm)
+    pg.keyboard.press('KeyK'); pg.wait_for_timeout(200)
+    bm = pg.evaluate(f"(()=>{{const g={G}; return g.giocatori.map(p=>p.bombe)}})()")
+    print('bombe dopo K (P1):', bm)
+    # punti separati: uccisione attribuita
+    pg.evaluate(f"(()=>{{const g={G}; g.punti(100,0,0,1);}})()")
+    print('punti', pg.evaluate(f"{G}.st.g.map(q=>q.punti)"))
+    pg.screenshot(path=f'{OUT}/07_hud.png')
+    # morte di P1 con vite: rinasce; vite 0 -> fuori
+    pg.evaluate(f"(()=>{{const g={G}; g.st.g[0].vite=1; g.giocatori[0].muori();}})()")
+    pg.wait_for_timeout(2200)
+    print('P1 dopo ultima vita', pg.evaluate(f"(()=>{{const g={G}; return {{fuori:g.giocatori[0].fuori, vis:g.giocatori[0].sprite.visible, continua:!!g.continua, p2:g.giocatori[1].morto}}}})()"))
+    pg.screenshot(path=f'{OUT}/08_p1fuori.png')
+    pg.evaluate(f"(()=>{{const g={G}; g.st.g[1].vite=1; g.giocatori[1].muori();}})()")
+    pg.wait_for_timeout(2400)
+    print('entrambi fuori', pg.evaluate(f"(()=>{{const g={G}; return {{continua:!!g.continua}}}})()"))
+    pg.screenshot(path=f'{OUT}/09_continue.png')
+    pg.wait_for_timeout(700); pg.keyboard.press('Enter'); pg.wait_for_timeout(1800)
+    print('dopo continue', pg.evaluate(f"(()=>{{const g={G}; return {{n:g.giocatori.length, vite:g.st.g.map(q=>q.vite), punti:g.st.g.map(q=>q.punti), fuori:g.giocatori.map(p=>p.fuori)}}}})()"))
+    pg.screenshot(path=f'{OUT}/10_ripartito.png')
+    print('ERRORI', errs[:8])
+    b.close()

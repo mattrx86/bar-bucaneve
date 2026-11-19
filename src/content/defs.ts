@@ -171,7 +171,7 @@ export const PROPS_CANTINA: PropPos[] = [];
 // BOSS
 // ---------------------------------------------------------------------------
 export const GIOVA = { nome: 'GIOVA', sottotitolo: 'IL BUTTAFUORI DEL BUCANEVE', vita: 600, danno: 18, punti: 2000 };
-export const ETTORE = { nome: 'ETTORE', sottotitolo: 'IL BARISTA CON LA DOPPIETTA', vita: 1500, danno: 16, punti: 5000 };
+export const ETTORE = { nome: 'ETTORE', sottotitolo: 'IL BARISTA CON LA DOPPIETTA', vita: 3200, danno: 16, punti: 5000 };
 
 export const FRASI_ETTORE = ['VEI CHI CHE TE MATO!', 'CHI HA TOCCATO IL MIO GELATO?', 'QUI SI PAGA PRIMA!', 'ADESSO TI SISTEMO IO!'];
 export const FRASI_GIOVA = ['STASERA NON SI ENTRA.', 'LISTA CHIUSA!', 'NON SEI IN LISTA, AMICO.'];

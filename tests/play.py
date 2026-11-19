@@ -16,7 +16,7 @@ with sync_playwright() as p:
     pg.screenshot(path=f'{OUT}/02_scelta.png')
     pg.keyboard.press('Enter'); pg.wait_for_timeout(1200)
     G = "window.__game.scene.getScene('Game')"
-    def st(): return pg.evaluate(f"(()=>{{const g={G}; return {{x:g.giocatore.x, cam:g.camX, onda:g.onda, nem:g.nemici.length, boss:g.boss?g.boss.nome+':'+Math.round(g.boss.vita):null, vite:g.st.vite, fase:g.fase, punti:g.st.punti}}}})()")
+    def st(): return pg.evaluate(f"(()=>{{const g={G}; return {{x:g.giocatore.x, cam:g.camX, onda:g.onda, nem:g.nemici.length, boss:g.boss?g.boss.nome+':'+Math.round(g.boss.vita):null, vite:g.st.g[0].vite, fase:g.fase, punti:g.st.g[0].punti}}}})()")
     god = f"{G}.giocatore.invuln=5"
     pg.keyboard.down('ArrowRight'); pg.keyboard.down('KeyJ')
     shot = 3

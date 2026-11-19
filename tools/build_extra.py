@@ -141,29 +141,26 @@ if ARMI:
     pv.save(PREV.replace('.png', '_armi.png'))
 
 # ---------------------------------------------------------------------------
-# Musica: resa "8 bit povera" (campionamento basso, pochi bit, banda stretta), mono,
-# primi 150 s con dissolvenze per il ciclo continuo.
+# Musica: i brani veri, interi, solo ricompressi in mp3 (stereo 80 kbit) e portati a un livello
+# sonoro uniforme (loudnorm). Il volume di riproduzione lo decide src/core/audio.ts (VOL_MUSICA).
+# Una breve dissolvenza in apertura e in chiusura evita lo "scatto" quando il brano riparte in ciclo.
+# (Fino alla 1.0 i brani venivano trasformati in suonerie a onde quadre con tools/chiptune.py:
+#  il file resta nel progetto ma non viene piu' usato.)
 # ---------------------------------------------------------------------------
+import shutil
 musica = {}
 if MUSICA and os.path.isdir(MUSICA):
     for f in sorted(os.listdir(MUSICA)):
         nome, ext = os.path.splitext(f)
         if ext.lower() not in ('.mp3', '.wav', '.m4a', '.ogg'): continue
         out = os.path.join(tmp, 'mus_' + nome + '.mp3')
-        # suoneria polifonica: note ricavate dal brano e risuonate con onde quadre (tools/chiptune.py)
-        chip = os.path.join(tmp, 'chip_' + nome + '.wav')
-        subprocess.run([sys.executable, os.path.join(os.path.dirname(__file__), 'chiptune.py'), os.path.join(MUSICA, f), chip, '150'], check=True, stdout=subprocess.DEVNULL)
-        subprocess.run(['ffmpeg', '-v', 'error', '-y', '-i', chip, '-ac', '1', '-ar', '22050', '-b:a', '56k', out], check=True)
+        durata = float(subprocess.run(['ffprobe', '-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0',
+                                       os.path.join(MUSICA, f)], capture_output=True, text=True, check=True).stdout.strip())
+        filtro = f'loudnorm=I=-16:TP=-1.5:LRA=11,afade=t=in:d=0.3,afade=t=out:st={max(0, durata - 2.0):.2f}:d=2.0'
+        subprocess.run(['ffmpeg', '-v', 'error', '-y', '-i', os.path.join(MUSICA, f), '-vn', '-af', filtro,
+                        '-ac', '2', '-ar', '44100', '-c:a', 'libmp3lame', '-b:a', '80k', out], check=True)
         musica[nome.lower()] = 'data:audio/mpeg;base64,' + base64.b64encode(open(out, 'rb').read()).decode()
-        import shutil; shutil.copy(out, PREV.replace('oggetti.png', 'musica_' + nome + '.mp3'))
-        continue
-        filtro = ('atrim=0:150,asetpts=N/SR/TB,highpass=f=120,lowpass=f=3600,'
-                  'aresample=11025,acrusher=bits=7:mode=lin:mix=0.9:aa=0,alimiter=limit=0.9,aresample=22050,'
-                  'afade=t=in:d=0.5,afade=t=out:st=147:d=3,dynaudnorm')
-        subprocess.run(['ffmpeg', '-v', 'error', '-y', '-i', os.path.join(MUSICA, f), '-af', filtro,
-                        '-ac', '1', '-ar', '22050', '-b:a', '48k', out], check=True)
-        musica[nome.lower()] = 'data:audio/mpeg;base64,' + base64.b64encode(open(out, 'rb').read()).decode()
-        import shutil; shutil.copy(out, PREV.replace('oggetti.png', 'musica_' + nome + '.mp3'))
+        shutil.copy(out, PREV.replace('oggetti.png', 'musica_' + nome + '.mp3'))
 
 with open(OUT, 'w') as f:
     f.write('// GENERATO da tools/build_extra.py - non modificare a mano.\n')

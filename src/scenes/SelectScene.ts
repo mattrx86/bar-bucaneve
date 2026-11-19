@@ -6,6 +6,8 @@ import { loadSave, writeSave } from '../core/save';
 import { setPose } from '../entities';
 import { txt, zoomCamera, PixelText } from '../core/ui';
 
+const COLORE_G = ['#ffe066', '#60d8ff'];
+
 export class SelectScene extends Phaser.Scene {
   private ctrl!: Controls;
   private idx = 0;
@@ -16,12 +18,19 @@ export class SelectScene extends Phaser.Scene {
   private ultimo = -1000;
   private diffIdx = 1;
   private diffTxt!: PixelText;
+  private titolo!: PixelText;
+  /** 1 o 2 giocatori; `turno` = chi sta scegliendo (0 = primo, 1 = secondo) */
+  private n = 1;
+  private turno = 0;
+  private scelto: string[] = [];
   constructor() { super('Select'); }
 
-  create(): void {
+  create(d?: { giocatori?: number }): void {
     zoomCamera(this);
+    this.n = (d?.giocatori ?? loadSave().giocatori) === 2 ? 2 : 1;
+    this.turno = 0; this.scelto = [];
     this.add.rectangle(0, 0, VIEW_W, VIEW_H, 0x141824).setOrigin(0);
-    txt(this, VIEW_W / 2, 14, 'SCEGLI IL PERSONAGGIO', 13, '#ffe066', 4).setOrigin(0.5);
+    this.titolo = txt(this, VIEW_W / 2, 14, 'SCEGLI IL PERSONAGGIO', 13, '#ffe066', 4).setOrigin(0.5);
     const salvato = loadSave().charId;
     this.idx = Math.max(0, HEROES.findIndex((h) => h.id === salvato));
     this.cursore = this.add.rectangle(0, 118, this.passo() - 4, 92, 0x3a4460).setStrokeStyle(2, 0xffe066);
@@ -39,7 +48,10 @@ export class SelectScene extends Phaser.Scene {
     this.ctrl = new Controls(this);
     this.ultimo = -1000;
     this.refresh();
+    // tocco sulla scritta della difficolta': passa alla successiva (in giro)
+    this.add.zone(VIEW_W / 2, 32, 230, 16).setInteractive().on('pointerdown', () => { this.diffIdx = (this.diffIdx + 1) % DIFFICOLTA.length; sfx('menu'); this.refresh(); });
     this.input.on('pointerdown', (p: Phaser.Input.Pointer) => {
+      if (p.worldY < 60) return;
       const i = Math.round((p.worldX - this.px(0)) / this.passo());
       if (i >= 0 && i < HEROES.length) { if (i === this.idx) this.conferma(); else { this.idx = i; this.refresh(); } }
     });
@@ -52,7 +64,7 @@ export class SelectScene extends Phaser.Scene {
     if (s.su) this.cambiaDiff(1);
     if (s.giu) this.cambiaDiff(-1);
     if (s.confermaTap) this.conferma();
-    if (s.pausaTap) this.scene.start('Title');
+    if (s.pausaTap) { if (this.turno === 1) this.indietro(); else this.scene.start('Title'); }
     const t = this.time.now / 1000;
     this.sprites.forEach((sp, i) => {
       const id = HEROES[i].id;
@@ -64,6 +76,13 @@ export class SelectScene extends Phaser.Scene {
     if (this.time.now - this.ultimo < 180) return;
     this.ultimo = this.time.now;
     this.idx = (this.idx + d + HEROES.length) % HEROES.length;
+    // il secondo giocatore non puo' prendere lo stesso personaggio del primo (si vedrebbero identici)
+    if (this.turno === 1 && HEROES[this.idx].id === this.scelto[0] && HEROES.length > 1) this.idx = (this.idx + d + HEROES.length) % HEROES.length;
+    sfx('menu'); this.refresh();
+  }
+  private indietro(): void {
+    this.turno = 0; this.scelto = [];
+    this.idx = Math.max(0, HEROES.findIndex((h) => h.id === loadSave().charId));
     sfx('menu'); this.refresh();
   }
   /** Distanza tra i personaggi: si stringono se sono tanti. */
@@ -81,10 +100,25 @@ export class SelectScene extends Phaser.Scene {
     this.cursore.setPosition(this.px(this.idx), 118);
     this.sprites.forEach((s, i) => s.setAlpha(i === this.idx ? 1 : 0.55));
     this.nome.setText(h.nome); this.motto.setText(h.motto);
+    if (this.n === 2) {
+      this.titolo.setText(`GIOCATORE ${this.turno + 1}: SCEGLI`).setColor(COLORE_G[this.turno]).setOrigin(0.5);
+      this.cursore.setStrokeStyle(2, this.turno ? 0x60d8ff : 0xffe066);
+    }
   }
   private conferma(): void {
     sfx('conferma');
-    writeSave({ charId: HEROES[this.idx].id, diff: DIFFICOLTA[this.diffIdx].id });
-    this.scene.start('Game', { fase: 'strada', stato: null });
+    const id = HEROES[this.idx].id;
+    if (this.n === 2 && this.turno === 0) {
+      // primo scelto: tocca al secondo (parte da un personaggio diverso)
+      this.scelto = [id]; this.turno = 1;
+      const sec = HEROES.findIndex((h) => h.id === loadSave().charId2 && h.id !== id);
+      this.idx = sec >= 0 ? sec : (this.idx + 1) % HEROES.length;
+      this.refresh();
+      return;
+    }
+    if (this.n === 2 && id === this.scelto[0]) return; // stesso personaggio del primo
+    const eroi = this.n === 2 ? [this.scelto[0], id] : [id];
+    writeSave({ charId: eroi[0], charId2: eroi[1] ?? null, diff: DIFFICOLTA[this.diffIdx].id, giocatori: this.n });
+    this.scene.start('Game', { fase: 'strada', stato: null, eroi });
   }
 }

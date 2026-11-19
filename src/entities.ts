@@ -25,25 +25,32 @@ export interface BulletOpts {
   x: number; y: number; ang: number; speed: number; danno: number;
   tex: string; colore?: number; ostile: boolean; gittata: number;
   perforante?: boolean; esplosivo?: number; arco?: boolean; scala?: number;
+  /** Chi ha sparato (indice del giocatore, 0 o 1): serve ad assegnare i punti. */
+  chi?: number;
 }
 
 export interface World {
   sc: Phaser.Scene;
   sparaProiettile(o: BulletOpts): void;
   boom(x: number, y: number, grande: boolean): void;
-  punti(n: number, x?: number, y?: number): void;
+  /** `chi` = indice del giocatore che incassa i punti (0 se non indicato). */
+  punti(n: number, x?: number, y?: number, chi?: number): void;
   testo(x: number, y: number, s: string, color?: string): void;
   /** Scossa della camera: durata in ms e ampiezza in PIXEL DI GIOCO. */
   scuoti(ms: number, px: number): void;
+  /** Il primo giocatore (compatibilita'): per chi deve scegliere un bersaglio usare `bersaglio`. */
   giocatore: Player;
+  giocatori: Player[];
+  /** Il giocatore vivo piu' vicino a `x` (se sono tutti a terra, il piu' vicino in assoluto). */
+  bersaglio(x: number): Player;
   nemici: Enemy[];
   limiti(): { sx: number; dx: number };
-  colpoMischia?: (area: Phaser.Geom.Rectangle, danno: number) => void;
+  colpoMischia?: (area: Phaser.Geom.Rectangle, danno: number, chi?: number) => void;
   bossVicino?: (x: number, y: number) => boolean;
   /** micro-pausa del gioco (in secondi) per dare peso ai colpi */
   hitstop(s: number): void;
   /** uccisione di un nemico: gestisce combo e moltiplicatori */
-  uccisione(base: number, x: number, y: number, mischia: boolean): void;
+  uccisione(base: number, x: number, y: number, mischia: boolean, chi?: number): void;
   bossolo(x: number, y: number, dir: number): void;
   polvere?(x: number, grande?: boolean): void;
   /** Mirino lampeggiante a terra: avvisa dove sta per cadere qualcosa. */
@@ -103,11 +110,13 @@ export class Player {
   vitaMax = 100; vita = 100;
   arma: WeaponDef = WEAPONS.pistola; munizioni = -1; bombe = 10;
   invuln = 0; morto = false; mortoT = 0; vince = false;
+  /** Senza vite: resta fuori finche' la partita non riparte (solo in due). */
+  fuori = false;
   private cadenzaT = 0; private sparoT = 0; private colpitoT = 0;
   private azione: 'melee' | 'bomba' | null = null; private azioneT = 0;
   private posa = 'idle';
 
-  constructor(public w: World, public def: HeroDef, x: number) {
+  constructor(public w: World, public def: HeroDef, x: number, public idx = 0) {
     this.x = x; this.y = GROUND_Y;
     this.sheet = `hero_${def.id}`;
     this.sprite = w.sc.add.sprite(x, GROUND_Y, `sh_${this.sheet}`, 0).setDepth(50);
@@ -232,7 +241,7 @@ export class Player {
         x: b.x, y: b.y, ang: b.ang + sp, speed: a.velocita, danno: a.danno,
         tex: a.id === 'lanciarazzi' ? 'rocket' : a.id === 'fiamma' ? 'flame' : 'bullet',
         colore: a.colore, ostile: false, gittata: a.gittata, perforante: a.perforante, esplosivo: a.esplosivo,
-        scala: a.id === 'fiamma' ? 0.9 : 1,
+        scala: a.id === 'fiamma' ? 0.9 : 1, chi: this.idx,
       });
     }
     const fl = img(this.w.sc, b.x, b.y, a.id === 'pistola' ? 'lampo_1' : 'lampo_2', 'flash0').setOrigin(0, 0.5).setDepth(61).setRotation(b.ang);
@@ -246,7 +255,7 @@ export class Player {
     const d = this.guardaDx ? 1 : -1;
     this.w.sparaProiettile({
       x: this.x + 6 * d, y: this.y - 50, ang: this.guardaDx ? -55 * R : Math.PI + 55 * R,
-      speed: 250, danno: 60, tex: 'bomba', ostile: false, gittata: 900, esplosivo: 46, arco: true,
+      speed: 250, danno: 60, tex: 'bomba', ostile: false, gittata: 900, esplosivo: 46, arco: true, chi: this.idx,
     });
   }
 
@@ -255,9 +264,9 @@ export class Player {
     const d = this.guardaDx ? 1 : -1;
     const area = new Phaser.Geom.Rectangle(this.x + (d > 0 ? 0 : -34), this.y - 46, 34, 40);
     for (const e of this.w.nemici) {
-      if (!e.morto && Phaser.Geom.Intersects.RectangleToRectangle(area, e.box())) e.danno(30, d, true);
+      if (!e.morto && Phaser.Geom.Intersects.RectangleToRectangle(area, e.box())) e.danno(30, d, true, this.idx);
     }
-    this.w.colpoMischia?.(area, 30);
+    this.w.colpoMischia?.(area, 30, this.idx);
   }
 }
 
@@ -296,7 +305,7 @@ export class Enemy {
     return new Phaser.Geom.Rectangle(this.x - 12, this.y - h, 24, h);
   }
 
-  danno(n: number, dir = 0, mischia = false): boolean {
+  danno(n: number, dir = 0, mischia = false, chi = 0): boolean {
     if (this.morto) return false;
     this.vita -= n; this.lampo = 0.07;
     if (!this.alto) this.x += (dir || (this.guardaDx ? -1 : 1)) * 2.5; // piccolo rinculo
@@ -306,7 +315,7 @@ export class Enemy {
       sfx('nemicoMorto'); this.w.hitstop(0.06);
       parla(this.chi, 'muore', 0.55, 1.5);
       this.w.mortoNemico?.(this);
-      this.w.uccisione(this.def.punti, this.x, this.y - 50, mischia);
+      this.w.uccisione(this.def.punti, this.x, this.y - 50, mischia, chi);
       return true;
     }
     sfx('nemicoColpito'); this.w.hitstop(0.025);
@@ -315,7 +324,7 @@ export class Enemy {
   }
 
   update(dt: number): void {
-    const p = this.w.giocatore;
+    const p = this.w.bersaglio(this.x);
     if (this.morto) {
       this.mortoT += dt; this.x += this.vx * dt; this.vx *= 0.92;
       if (this.alto) { // cade giù dal balcone
@@ -409,7 +418,7 @@ export class Enemy {
   }
 
   private lancia(): void {
-    const p = this.w.giocatore;
+    const p = this.w.bersaglio(this.x);
     const d = this.guardaDx ? 1 : -1;
     const sc = this.alto ? 0.85 : 1;
     const x0 = this.x + 10 * d, y0 = this.y - 48 * sc;
@@ -449,14 +458,14 @@ export abstract class BossBase {
   abstract box(): Phaser.Geom.Rectangle;
   abstract update(dt: number): void;
   moltiplicatore(): number { return 1; }
-  danno(n: number): void {
+  danno(n: number, chi = 0): void {
     if (this.morto || !this.attivo) return;
     this.vita -= n * this.moltiplicatore();
     // Raffreddamento del flash: il fuoco continuo non deve trasformare il boss in una sagoma bianca.
     const ora = this.w.sc.time.now;
     if (ora - this.ultimoLampo >= 150) { this.lampo = 0.055; this.ultimoLampo = ora; }
     sfx('bossColpito'); this.w.hitstop(0.012);
-    if (this.vita <= 0) { this.vita = 0; this.morto = true; this.mortoT = 0; sfx('bossMorto'); this.w.sc.time.delayedCall(900, () => this.w.polvere?.(this.x, true)); this.w.hitstop(0.25); this.w.punti(Math.round(this.punti * this.w.diff.punti), this.x, this.y - 90); this.w.scuoti(500, 6); this.onMorte?.(); }
+    if (this.vita <= 0) { this.vita = 0; this.morto = true; this.mortoT = 0; sfx('bossMorto'); this.w.sc.time.delayedCall(900, () => this.w.polvere?.(this.x, true)); this.w.hitstop(0.25); this.w.punti(Math.round(this.punti * this.w.diff.punti), this.x, this.y - 90, chi); this.w.scuoti(500, 6); this.onMorte?.(); }
   }
   protected disegna(posa: string): void {
     setPose(this.sprite, this.sheet, posa);
@@ -478,7 +487,7 @@ export class Giova extends BossBase {
   box(): Phaser.Geom.Rectangle { return new Phaser.Geom.Rectangle(this.x - 17, this.y - 76, 34, 76); }
 
   update(dt: number): void {
-    const p = this.w.giocatore; const now = this.w.sc.time.now / 1000;
+    const p = this.w.bersaglio(this.x); const now = this.w.sc.time.now / 1000;
     this.lampo = Math.max(0, this.lampo - dt);
     if (this.morto) {
       this.mortoT += dt;
@@ -560,7 +569,7 @@ export class Ettore extends BossBase {
   /** 1 = doppietta mirata · 2 = aggiunge ventaglio e bottiglie dall'alto · 3 = tutto, più veloce */
   fase = 1;
   private colpi = 0; private mira: { x: number; y: number; ang: number } | null = null;
-  private camminaT = 1.5;
+  private camminaT = 1.0;
   private avvisoMira = false;
   private attacco: AttaccoEttore = 'mirato';
   private colpoVicino = false;
@@ -588,15 +597,23 @@ export class Ettore extends BossBase {
   }
 
   /** Quante scariche di fila prima di dover ricaricare. */
-  private scaricheMassime(): number { return this.fase === 3 ? 4 : this.fase === 2 ? 3 : 2; }
+  private scaricheMassime(): number { return this.fase === 3 ? 5 : this.fase === 2 ? 4 : 3; }
 
   /** Durata del preavviso: sempre abbastanza da poter reagire, anche in fase 3. */
   private durataMira(): number {
-    if (this.attacco === 'ventaglio') return 0.9;
-    if (this.attacco === 'pioggia') return 0.8;
-    if (this.attacco === 'rasoterra') return 0.85; // la bottiglia rotola: il salto va preparato
-    return this.fase === 3 ? 0.68 : this.fase === 2 ? 0.75 : (this.colpi === 0 ? 0.8 : 0.65);
+    if (this.attacco === 'ventaglio') return 0.8;
+    if (this.attacco === 'pioggia') return 0.75;
+    if (this.attacco === 'rasoterra') return 0.8; // la bottiglia rotola: il salto va preparato
+    return this.fase === 3 ? 0.55 : this.fase === 2 ? 0.62 : (this.colpi === 0 ? 0.7 : 0.55);
   }
+  /** Chi sta prendendo di mira (in due giocatori ne sceglie uno a caso a ogni preparazione,
+   *  cosi' non basta che uno faccia da esca stando vicino mentre l'altro spara da lontano). */
+  private obiettivo: Player | null = null;
+  private scegliObiettivo(): void {
+    const vivi = this.w.giocatori.filter((q) => !q.morto);
+    this.obiettivo = vivi.length ? Phaser.Utils.Array.GetRandom(vivi) : null;
+  }
+  private bers(): Player { return this.obiettivo && !this.obiettivo.morto ? this.obiettivo : this.w.bersaglio(this.x); }
   box(): Phaser.Geom.Rectangle { return new Phaser.Geom.Rectangle(this.x - 32, this.y - 116, 64, 116); }
   moltiplicatore(): number { return this.st === 'ricarica' ? 1.6 : 1; }
 
@@ -605,13 +622,13 @@ export class Ettore extends BossBase {
     // La canna disegnata sporge 100 px dal centro: da vicino i pallettoni nascevano
     // gia' oltre il giocatore e gli passavano alle spalle (misurate 8 scariche su 15
     // sprecate cosi'). L'uscita si accorcia fino a meta' della distanza reale.
-    const dist = Math.abs(this.w.giocatore.x - this.x);
+    const dist = Math.abs(this.bers().x - this.x);
     const avanti = Math.min(m[0], Math.max(16, dist * 0.5));
     return { x: this.x + avanti * (this.guardaDx ? 1 : -1), y: this.y + m[1] };
   }
 
   update(dt: number): void {
-    const p = this.w.giocatore; const now = this.w.sc.time.now / 1000;
+    const p = this.w.bersaglio(this.x); const now = this.w.sc.time.now / 1000;
     this.lampo = Math.max(0, this.lampo - dt);
     if (this.morto) {
       this.mortoT += dt;
@@ -650,7 +667,7 @@ export class Ettore extends BossBase {
           break;
         }
         this.camminaT -= dt * vel;
-        if (this.camminaT <= 0) { this.st = 'mira'; this.t = 0; this.miraT = 0; this.colpi = 0; this.mira = null; this.avvisoMira = false; this.attacco = this.scegliAttacco(); }
+        if (this.camminaT <= 0) { this.st = 'mira'; this.t = 0; this.miraT = 0; this.colpi = 0; this.mira = null; this.avvisoMira = false; this.attacco = this.scegliAttacco(); this.scegliObiettivo(); }
         break;
       }
       case 'mira': {
@@ -658,6 +675,7 @@ export class Ettore extends BossBase {
         // e dice anche QUALE attacco sta arrivando: così la difficoltà sta nella reazione,
         // non nell'indovinare.
         this.miraT += dt;
+        const t = this.bers(); // in due, ogni preparazione prende di mira uno dei giocatori vivi
         const durata = this.durataMira();
         if (!this.avvisoMira) {
           this.avvisoMira = true;
@@ -667,11 +685,11 @@ export class Ettore extends BossBase {
           sfx('allarme');
           if (this.attacco === 'pioggia') this.segnaPioggia();
         }
-        this.guardaDx = dx > 0;
+        this.guardaDx = t.x > this.x;
         this.disegna(this.miraT < 0.25 ? 'tele_01' : 'tele_02');
         const b = this.bocca();
         if (this.miraT >= 0.25 && !this.mira) {
-          const ang = Math.atan2((p.y - (p.crouch ? 18 : 30)) - b.y, p.x - b.x);
+          const ang = Math.atan2((t.y - (t.crouch ? 18 : 30)) - b.y, t.x - b.x);
           const lim2 = this.guardaDx ? [-0.45, 0.35] : [Math.PI - 0.35, Math.PI + 0.45];
           let a = ang; if (!this.guardaDx && a < 0) a += Math.PI * 2;
           this.mira = { ...b, ang: Phaser.Math.Clamp(a, lim2[0], lim2[1]) };
@@ -681,9 +699,9 @@ export class Ettore extends BossBase {
       }
       case 'sparo':
         this.disegna(this.t < 0.12 ? 'shoot_01' : 'shoot_02');
-        if (this.t > (this.attacco === 'ventaglio' ? 0.55 : 0.38)) {
+        if (this.t > (this.attacco === 'ventaglio' ? 0.45 : 0.3)) {
           if (this.colpi < this.scaricheMassime()) {
-            this.st = 'mira'; this.t = 0; this.miraT = 0; this.mira = null; this.avvisoMira = false;
+            this.st = 'mira'; this.t = 0; this.miraT = 0; this.mira = null; this.avvisoMira = false; this.scegliObiettivo();
             // dentro la stessa serie può cambiare attacco: è qui che nasce il ritmo arcade
             if (this.fase > 1) this.attacco = this.scegliAttacco();
           } else { this.st = 'ricarica'; this.t = 0; this.w.testo(this.x, this.y - 128, 'RICARICA!', '#ffe066'); voce('ettore_borbottio', 9, 0.8); }
@@ -698,17 +716,17 @@ export class Ettore extends BossBase {
           const a = new Phaser.Geom.Rectangle(this.x + (d > 0 ? 0 : -58), this.y - 62, 58, 62);
           if (!p.morto && Phaser.Geom.Intersects.RectangleToRectangle(a, p.box())) p.danno(ETTORE.danno);
         }
-        if (this.t > 0.9) { this.st = 'cammina'; this.t = 0; this.camminaT = 0.3 + Math.random() * 0.4; }
+        if (this.t > 0.9) { this.st = 'cammina'; this.t = 0; this.camminaT = 0.2 + Math.random() * 0.3; }
         break;
       }
       case 'ricarica': {
         // Finestra di vulnerabilità: prende 1,6 volte il danno. Si accorcia con le fasi,
         // ma non sparisce mai: è l'unico momento in cui si recupera terreno.
-        const durataRic = this.fase === 3 ? 0.9 : this.fase === 2 ? 1.05 : 1.25;
+        const durataRic = this.fase === 3 ? 0.7 : this.fase === 2 ? 0.85 : 1.05;
         this.disegna(this.t < durataRic * 0.32 ? 'reload_01' : this.t < durataRic * 0.68 ? 'reload_02' : 'reload_03');
         if (this.t > durataRic) {
           this.st = 'cammina'; this.t = 0;
-          this.camminaT = this.fase === 3 ? 0.25 + Math.random() * 0.35 : this.fase === 2 ? 0.4 + Math.random() * 0.5 : 0.55 + Math.random() * 0.75;
+          this.camminaT = this.fase === 3 ? 0.1 + Math.random() * 0.2 : this.fase === 2 ? 0.2 + Math.random() * 0.3 : 0.3 + Math.random() * 0.45;
           if (Math.random() < 0.35) this.frase(FRASI_ETTORE);
         }
         break;
@@ -721,11 +739,12 @@ export class Ettore extends BossBase {
   private segnaPioggia(): void {
     const lim = this.w.limiti();
     const n = this.fase === 3 ? 4 : 3;
-    const px = this.w.giocatore.x;
+    const vivi = this.w.giocatori.filter((q) => !q.morto);
+    const px = (vivi.length ? vivi : this.w.giocatori)[0].x;
     this.bersagliPioggia = [];
     for (let i = 0; i < n; i++) {
-      // una cade addosso al giocatore, le altre intorno: bisogna muoversi, non restare fermi
-      const x = i === 0 ? px : Phaser.Math.Clamp(px + Phaser.Math.Between(-110, 110), lim.sx + 16, lim.dx - 16);
+      // una cade addosso a ciascun giocatore vivo, le altre intorno: bisogna muoversi, non restare fermi
+      const x = i < vivi.length ? vivi[i].x : Phaser.Math.Clamp(px + Phaser.Math.Between(-110, 110), lim.sx + 16, lim.dx - 16);
       this.bersagliPioggia.push(x);
       this.w.mirino?.(x);
     }
@@ -777,7 +796,7 @@ export class Ettore extends BossBase {
 
   /** Bottiglie dal soffitto sui mirini già mostrati: obbliga a cambiare posto. */
   private lanciaBottiglie(): void {
-    const bersagli = this.bersagliPioggia.length ? this.bersagliPioggia : [this.w.giocatore.x];
+    const bersagli = this.bersagliPioggia.length ? this.bersagliPioggia : [this.bers().x];
     bersagli.forEach((x, i) => {
       this.w.sc.time.delayedCall(i * 110, () => {
         this.w.sparaProiettile({ x, y: 6, ang: Math.PI / 2, speed: 150, danno: ETTORE.danno, tex: 'bottiglia', ostile: true, gittata: 400, arco: true });

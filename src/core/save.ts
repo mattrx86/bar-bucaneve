@@ -5,7 +5,7 @@ const KEY = 'bar-bucaneve-save';
 const VERSION = 1;
 
 export interface Entry { nome: string; punti: number; data: string }
-export interface SaveData { v: number; charId: string | null; muted: boolean; record: Entry[]; diff?: string }
+export interface SaveData { v: number; charId: string | null; muted: boolean; record: Entry[]; diff?: string; /** ultimo modo scelto: 1 o 2 giocatori */ giocatori?: number; /** personaggio del secondo giocatore */ charId2?: string | null }
 
 const DEFAULT: SaveData = { v: VERSION, charId: null, muted: false, record: [] };
 

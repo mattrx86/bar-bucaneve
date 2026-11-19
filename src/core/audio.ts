@@ -117,10 +117,11 @@ export function voce(nome: string, pausa = 0, volume = 1): void {
 }
 
 // ---------------------------------------------------------------------------
-// MUSICA (vostri brani resi "8 bit" dalla pipeline): un brano alla volta, in ciclo,
+// MUSICA (i vostri brani, interi, in mp3): un brano alla volta, in ciclo,
 // si abbassa da sola mentre parla una voce.
 // ---------------------------------------------------------------------------
-const VOL_MUSICA = 0.35;
+/** Musica sotto a voci ed effetti: i brani sono normalizzati a -16 LUFS dal build, qui si abbassano. */
+const VOL_MUSICA = 0.25;
 const musBuf: Record<string, AudioBuffer | null> = {};
 let musSrc: AudioBufferSourceNode | null = null;
 let musGain: GainNode | null = null;
