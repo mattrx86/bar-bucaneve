@@ -1,18 +1,27 @@
-# Istruzioni per Claude — Chiesa Gotica
+# Handoff Claude — Chiesa Gotica
 
-Questo dossier è il riferimento del lavoro ambientale. Prima di scrivere codice, leggi:
-1. `README.md`
-2. `art-direction/ART_DIRECTION.md`
-3. `technical/INTEGRATION_PLAN.md`
-4. `asset-manifest/ASSET_MANIFEST.md`
+Obiettivo: completare e integrare l'ambientazione gotica come sostituzione visiva della cantina, senza cambiare alcuna meccanica.
 
-Poi analizza il repository e confronta queste specifiche con lo stato reale del codice, senza presumere che il piano sia già implementato.
+## Prima di intervenire
+- Analizza il branch più aggiornato del gioco e confrontalo con questo branch.
+- Individua dove sono stati caricati i personaggi, la musica e gli SFX dell'utente: potrebbero essere su un branch diverso. Non presumere che le cartelle audio di questo progetto contengano già i file.
+- Leggi README, ART_DIRECTION, INTEGRATION_PLAN e ASSET_MANIFEST.
+- Verifica le dimensioni reali di ogni SVG e crea una pipeline ripetibile di rasterizzazione/slicing.
 
-## Richiesta operativa
-Realizza la sostituzione ambientale della cantina con la chiesa gotica. Mantieni intatti i sistemi di gameplay e conserva gli asset preesistenti. Prepara un ambiente modulare a scorrimento orizzontale con ingresso, navata e arena dell'altare. Implementa layer di parallasse, candele animate e luce colorata della vetrata con sistemi compatibili con Phaser 4.2.1.
+## Asset ambiente disponibili
+Usa i file SVG in background/, architecture/, tilesets/, props/, altar/ e lighting/ come sorgenti di partenza. Gli atlas sono studi modulari: estrai ogni elemento in PNG trasparente separato, elimina i fondi scuri di preview, preserva pixel netti e crea varianti necessarie per comporre la scena. Non caricare un atlas intero come singolo oggetto in-game.
 
-## Vincolo sui boss
-Griso e Don Antonio non sono ancora stati caricati. Non inventare sprite, silhouette definitive, animazioni, hitbox o dimensioni. Predisponi soltanto il punto d'integrazione e attendi i file originali.
+## Risultato richiesto
+- Navata laterale scorrevole con almeno 3 segmenti raccordabili.
+- Layer parallax distinti: fondale profondo, finestre/vetrate, architettura, props, foreground.
+- Pavimento modulare con tappeto continuo.
+- Props collocati su baseline coerenti e con depth sorting.
+- Arena finale con altare e vetrata monumentale.
+- Fiamme animate e luce calda discreta, senza effetti che compromettano la leggibilità.
+- Tutti gli asset registrati in un manifest con dimensioni, pivot, baseline, frame e percorso.
 
-## Criteri di completamento
-Non chiamare "completo" un asset sheet composito: gli elementi devono essere file separati, trasparenti dove richiesto e pronti per il loader del gioco. Non dichiarare integrazione o test se non sono stati effettivamente eseguiti. Elenca file modificati, comandi eseguiti, risultati dei test e limitazioni residue.
+## Vincoli assoluti
+Non modificare player, nemici, boss logic, armi, collisioni, input, HUD, punteggi, salvataggi o sistemi di gioco. Non cancellare la cantina originale. Non inventare sprite di Griso o Don Antonio: usare esclusivamente i file forniti dall'utente dopo averli identificati.
+
+## Verifica
+Eseguire build e test esistenti, verificare screenshot a risoluzione nativa e zoom 3×, controllare tile seams, trasparenze, layer order e assenza di regressioni. Consegnare elenco file generati e istruzioni per riprodurre la pipeline.
