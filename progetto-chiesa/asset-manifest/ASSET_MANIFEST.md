@@ -1,31 +1,20 @@
-# Manifest degli asset — Chiesa Gotica
+# Manifest asset — Chiesa Gotica
 
-Stati: **DA PRODURRE**, **DA RICEVERE**, **DA INTEGRARE**, **DA VERIFICARE**.
-
-| Area | Asset | Note | Stato |
+| Area | File sorgente | Contenuto | Stato |
 |---|---|---|---|
-| Background | Fondale parete navata | Segmenti raccordabili, finestre e muratura | DA PRODURRE |
-| Architecture | Colonne e capitelli | Varianti e trasparenza dove necessaria | DA PRODURRE |
-| Architecture | Archi gotici | Moduli raccordabili | DA PRODURRE |
-| Tilesets | Pavimento e tappeto | Bordo sinistro/centrale/destro, variazioni | DA PRODURRE |
-| Foreground | Panche e candelabri | Livello di profondità controllato | DA PRODURRE |
-| Props | Statue, quadri, drappi, leggio, detriti | Props separati con pivot documentato | DA PRODURRE |
-| Altar | Altare monumentale | Asset dedicato all'arena | DA PRODURRE |
-| Stained glass | Grande vetrata gotica | Elemento centrale dell'arena | DA PRODURRE |
-| Animations | Fiamma candela | 4–6 frame o più se necessario | DA PRODURRE |
-| Lighting | Glow candela | Overlay pixel art, intensità contenuta | DA PRODURRE |
-| Lighting | Raggi e riflessi vetrata | Overlay colorato animabile | DA PRODURRE |
-| Parallax | Layer L0–L4 | Separati e con dimensioni documentate | DA PRODURRE |
-| Boss | Griso | Attendere asset forniti dall'utente | DA RICEVERE |
-| Boss | Don Antonio | Cattivo principale; attendere asset forniti dall'utente | DA RICEVERE |
+| Background | `background/church_parallax.svg` | Navata, muratura, colonne, finestre | SORGENTE CREATA — da separare in layer |
+| Architecture | `architecture/gothic_modules.svg` | Colonne, archi, portali, finestre | SORGENTE CREATA — da estrarre |
+| Tilesets | `tilesets/floor_carpet.svg` | Pavimento in pietra e tappeto | SORGENTE CREATA — da tile-izzare |
+| Props | `props/church_props.svg` | Panca, candeliere, croce, quadro, statua, arredo | SORGENTE CREATA — da estrarre |
+| Altar | `altar/altar_and_rosette.svg` | Altare e rosone/vetrata | SORGENTE CREATA — da rifinire |
+| Lighting | `lighting/candle_flame.svg` | Tre pose fiamma | SORGENTE CREATA — da animare |
+| Boss | da ricevere | Griso | DA RICEVERE / verificare file caricati |
+| Boss | da ricevere | Don Antonio | DA RICEVERE / verificare file caricati |
+| Audio | `audio/music/` | Musiche chiesa | DA VERIFICARE |
+| Audio | `audio/sfx/` | Effetti chiesa | DA VERIFICARE |
 
-## Convenzioni di consegna
-Per ogni PNG indicare:
-- dimensioni in pixel e scala/densità di riferimento;
-- origine/pivot e baseline;
-- uso previsto (background, midground, foreground, prop);
-- se è tileable e su quali bordi;
-- palette e trasparenza;
-- eventuali frame, durata e punto di loop.
-
-Non inserire tavole composite o immagini con più asset incollati come sostituti di sprite separati. Una tavola di concept è solo riferimento visivo.
+## Vincoli
+- Coordinate gioco note: 384×216 logiche, zoom 3×, DENSITA 1.5, baseline terreno indicativa GROUND_Y=180.
+- Nessuna modifica al gameplay.
+- Non sostituire la cantina finché la nuova scena non supera test visivi e build.
+- Gli SVG sono sorgenti modulari preliminari; non considerarli sprite finali già pronti per il loader Phaser.
