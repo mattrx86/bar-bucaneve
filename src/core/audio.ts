@@ -192,6 +192,50 @@ const RICETTE: Partial<Record<Sfx, Strato[]>> = {
 
 /** Minimo di secondi tra due riproduzioni dello stesso suono (anti-mitragliamento audio). */
 const PAUSA_MIN: Partial<Record<Sfx, number>> = { pistola: 0.05, mitra: 0.045, fucile: 0.1, razzo: 0.1, doppietta: 0.25, doppiettaVentaglio: 0.25, boom: 0.06, nemicoColpito: 0.04, bossColpito: 0.05 };
+
+// ---------------------------------------------------------------------------
+// CAMPIONI DELLE ARMI (spari reali CC0, vedi grafica/sfx/CREDITI.md). Ogni suono ha piu' varianti
+// scelte a caso; intonazione e volume variano un poco a ogni colpo. I suoni sintetizzati restano
+// come rinforzo dei bassi (volume ridotto) e come ripiego finche' il campione non e' decodificato.
+// ---------------------------------------------------------------------------
+const campioni: Record<string, (AudioBuffer | null)[]> = {};
+const VOL_CAMPIONE: Partial<Record<Sfx, number>> = { pistola: 0.5, mitra: 0.36, fucile: 0.7, razzo: 0.6, boom: 0.62, motoImpatto: 0.7, doppietta: 0.85, doppiettaVentaglio: 0.85 };
+const VARIA_CAMPIONE: Partial<Record<Sfx, number>> = { pistola: 0.06, mitra: 0.1, fucile: 0.05, razzo: 0.04, boom: 0.08, motoImpatto: 0.05, doppietta: 0.03, doppiettaVentaglio: 0.03 };
+const SINTESI_CON_CAMPIONE = 0.22;
+function preparaCampioni(): void {
+  if (!ctx) return;
+  for (const nome of Object.keys(SFX)) {
+    if (campioni[nome]) continue;
+    campioni[nome] = SFX[nome].map(() => null);
+    SFX[nome].forEach((d, i) => {
+      try {
+        const bin = atob(d.split(',')[1]);
+        const arr = new Uint8Array(bin.length);
+        for (let j = 0; j < bin.length; j++) arr[j] = bin.charCodeAt(j);
+        ctx!.decodeAudioData(arr.buffer).then(b => { campioni[nome][i] = b; }, () => { /* resta il suono sintetico */ });
+      } catch { /* idem */ }
+    });
+  }
+}
+/** Suona una variante a caso del campione. Restituisce false se non e' ancora pronto. */
+function suonaCampione(name: Sfx, k: number, pan: number): boolean {
+  const lista = campioni[name];
+  if (!ctx || !master || !lista) return false;
+  const pronti = lista.filter((b): b is AudioBuffer => !!b);
+  if (!pronti.length) return false;
+  const b = pronti[Math.floor(Math.random() * pronti.length)];
+  const src = ctx.createBufferSource(); src.buffer = b;
+  src.playbackRate.value = 1 + (Math.random() - 0.5) * 2 * (VARIA_CAMPIONE[name] ?? 0.05);
+  const g = ctx.createGain(); g.gain.value = (VOL_CAMPIONE[name] ?? 0.6) * k * (0.9 + Math.random() * 0.2);
+  src.connect(g);
+  if (pan !== 0 && ctx.createStereoPanner) { const p = ctx.createStereoPanner(); p.pan.value = Math.max(-1, Math.min(1, pan)); g.connect(p).connect(master); }
+  else g.connect(master);
+  attive++;
+  src.onended = () => { attive--; };
+  src.start();
+  return true;
+}
+
 const ultimoSfx: Partial<Record<Sfx, number>> = {};
 /** Suoni "di coda" e non essenziali che si scartano se ci sono gia' troppi strati in corso. */
 const ESSENZIALI = new Set<Sfx>(['pistola', 'mitra', 'fucile', 'razzo', 'doppietta', 'doppiettaVentaglio', 'motoLancio', 'motoImpatto', 'colpito', 'morte', 'bossUrlo']);
@@ -204,8 +248,11 @@ export function sfx(name: Sfx, k = 1, pan = 0): void {
   if (minimo && ultimoSfx[name] !== undefined && ora - ultimoSfx[name]! < minimo) return;
   ultimoSfx[name] = ora;
   if (attive > 60 && !ESSENZIALI.has(name)) return;
+  if (!campioni[name] && SFX[name]) preparaCampioni();   // decodifica al primo bisogno (il primo colpo usa la sintesi)
+  const conCampione = suonaCampione(name, k, pan);
   const ric = RICETTE[name];
   if (ric) {
+    if (conCampione) { for (const l of ric) strato(l, k * SINTESI_CON_CAMPIONE, pan, 1); return; }
     // piccola variazione di intonazione a ogni colpo: le raffiche non suonano come un campione ripetuto
     const pitch = 1 + (Math.random() - 0.5) * (name === 'mitra' ? 0.12 : 0.06);
     for (const l of ric) strato(l, k, pan, pitch);
@@ -233,7 +280,10 @@ export function sfx(name: Sfx, k = 1, pan = 0): void {
 // ---------------------------------------------------------------------------
 // VOCI REGISTRATE (mp3 incorporati): decodificate al primo uso.
 // ---------------------------------------------------------------------------
-import { VOCI, MUSICA } from '../content/extra';
+import { VOCI, MUSICA, VOCI_FASE, SFX } from '../content/extra';
+/** Stadio in corso: le voci messe in voci/<stadio>/ si sentono solo li' ('strada', 'bucaneve', 'ettore'). null = tutte. */
+let faseAudio: string | null = null;
+export function setFaseAudio(f: string | null): void { faseAudio = f; }
 const buffers: Record<string, AudioBuffer | null> = {};
 let ultimaVoce: AudioBufferSourceNode | null = null;
 const ultimoUso: Record<string, number> = {};
@@ -251,11 +301,13 @@ async function decodifica(nome: string): Promise<AudioBuffer | null> {
   return buffers[nome];
 }
 /** Precarica tutte le voci (dopo il primo tasto, quando l'audio è sbloccato). */
-export function preparaVoci(): void { if (ctx) for (const n of Object.keys(VOCI)) void decodifica(n); }
+export function preparaVoci(): void { preparaCampioni(); if (ctx) for (const n of Object.keys(VOCI)) void decodifica(n); }
 
 /** Suona una voce. `pausa` = secondi minimi tra due usi della stessa voce. Una voce alla volta. */
 export function voce(nome: string, pausa = 0, volume = 1): void {
   if (!ctx || !master || muted) return;
+  const fv = VOCI_FASE[nome];
+  if (fv && faseAudio && fv !== faseAudio) return;   // voce di un altro stadio
   const now = ctx.currentTime;
   if (pausa && ultimoUso[nome] !== undefined && now - ultimoUso[nome] < pausa) return;
   ultimoUso[nome] = now;
@@ -343,7 +395,7 @@ export function parla(chi: string | string[], evento: string, prob = 1, pausa = 
   if (ctx.currentTime - ultimaFrase < 0.7) return false; // non accavallare le frasi
   for (const c of Array.isArray(chi) ? chi : [chi]) {
     const base = `${c}_${evento}`;
-    const scelte = Object.keys(VOCI).filter((k) => k === base || new RegExp(`^${base}_\\d+$`).test(k));
+    const scelte = Object.keys(VOCI).filter((k) => (k === base || new RegExp(`^${base}_\\d+$`).test(k)) && !(VOCI_FASE[k] && faseAudio && VOCI_FASE[k] !== faseAudio));
     if (!scelte.length) continue;
     ultimaFrase = ctx.currentTime;
     voce(scelte[Math.floor(Math.random() * scelte.length)], pausa);

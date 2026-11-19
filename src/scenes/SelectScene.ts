@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { VIEW_W, VIEW_H, HEROES, DIFFICOLTA } from '../content/defs';
 import { Controls } from '../core/controls';
-import { sfx } from '../core/audio';
+import { sfx, musica } from '../core/audio';
 import { loadSave, writeSave } from '../core/save';
 import { setPose } from '../entities';
 import { txt, zoomCamera, PixelText } from '../core/ui';
@@ -27,6 +27,7 @@ export class SelectScene extends Phaser.Scene {
 
   create(d?: { giocatori?: number }): void {
     zoomCamera(this);
+    musica('menu');
     this.n = (d?.giocatori ?? loadSave().giocatori) === 2 ? 2 : 1;
     this.turno = 0; this.scelto = [];
     this.add.rectangle(0, 0, VIEW_W, VIEW_H, 0x141824).setOrigin(0);

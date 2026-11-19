@@ -1,4 +1,4 @@
-# Bar Bucaneve - prototipo 1.2
+# BUCA SLUG - prototipo 1.3
 
 Run'n'gun stile Metal Slug. Strada di Ponte Arche (gelatai e ubriachi) -> Giova davanti al Bar Bucaneve -> Ettore in cantina.
 
@@ -27,12 +27,20 @@ Scaricate `bar-bucaneve.html` e apritelo con doppio clic (Chrome, Edge o Firefox
 - `src/scenes/`: Boot, Title, Select, Game (fasi strada e cantina), Result.
 - `richieste/`: **richieste di modifica degli amici** (istruzioni + materiali). Le eseguo solo quando me lo dite; vedi `richieste/LEGGIMI.md`.
 
+## Novità 1.3
+- **Il gioco si chiama BUCA SLUG** (titolo, scheda del browser, documenti). Il file resta `bar-bucaneve.html` come il repository, così i vostri link non cambiano; "Bar Bucaneve" è il locale vero dove arriva Giova.
+- **Schermata del titolo** con la vostra grafica (`grafica/titolo/schermata.png`, ridotta a 576x324 con pixel netti) e titolo/menu su veli scuri per leggersi bene.
+- **Nomi**: Fole (Roberto), Sgan (Mattia), Dandan (Daniele), Paul (Paolo), Ganzoia (Marco), Pippa (Michela), Vero (Veronica), Giovanni (Giova). Cambiano solo i nomi mostrati; i nomi dei file e degli id restano gli stessi, quindi cartelle e voci già caricate funzionano.
+- **Audio per stadio**: le voci si mettono in `grafica/voci/strada`, `grafica/voci/bucaneve` o `grafica/voci/ettore` e suonano solo in quello stadio (le voci derivate da prefisso `giova_`/`ettore_` seguono lo stesso criterio). Un file chiamato `sottofondo <nome>` diventa musica di quello stadio (`sottofondo boss giova` parte quando entra Giovanni). `.mp4` accettato come estensione.
+- **Musica del menu** (`grafica/musica/Menu.mp3`) in titolo e selezione; parte al primo tasto o clic (il browser non permette l'audio prima).
+- **Suoni delle armi con spari veri**: campioni CC0 del pacchetto "25 CC0 bang / firework SFX" di rubberduck (OpenGameArt), in `grafica/sfx/` con `CREDITI.md` e licenza. Pistola, mitra, fucile, lanciarazzi, esplosioni, schianto della moto e doppietta di Ettore (due botti ravvicinati e più gravi). Ogni colpo sceglie una variante a caso con piccola variazione d'intonazione. I suoni sintetizzati restano a basso volume come rinforzo dei bassi e come ripiego. Nota: non posso ascoltare l'audio, i livelli sono normalizzati ma vanno giudicati a orecchio.
+
 ## Novità 1.2
 - **Lanciafiamme tolto** da armi, casse, icone, suoni e logica (la cassa a x=2325 ora contiene il fucile a pompa).
 - **Punto di sparo corretto**: in corsa i colpi nascevano all'altezza della testa. Il difetto era doppio: la 1.0 forzava la quota della posa di tiro, e la misura della canna nei fotogrammi di corsa trovava il naso (che sporge più della pistola, tenuta sotto il mento). Ora la misura in corsa guarda sotto il mento e `Player.bocca()` usa la canna misurata sul fotogramma mostrato. Verificato su 7 eroi x 10 pose x 2 versi (`tests/arma_mano.py`).
 - **Mitragliatrice in mano** (`grafica/personaggi/Mitragliatrice...png`): sovrapposta alla mano, segue posa, verso e (in alto) rotazione; i colpi escono dalla sua canna. Ancoraggio in `ARMA_MANO` (`src/content/defs.ts`). Fucile e lanciarazzi non hanno ancora il disegno in mano (vedi la richiesta a ChatGPT nel rapporto).
 - **Colori dei proiettili per personaggio**: mappa unica in `src/content/colori.ts` (Vero viola, Michela rosa, Roberto azzurro, Marco verde, Daniele arancione, Paolo rosso, Mattia invariato). Al caricamento si crea una copia ricolorata di proiettile, razzo, granata e lampo di bocca: cambia solo la tinta dei pixel colorati, contorni, riflessi e grigi restano. Verificato su tutte le armi (`tests/colori.py`).
-- **Suoni delle armi riscritti** (`src/core/audio.ts`): ogni arma è un insieme di strati (scatto, corpo, colpo grave, coda) generati dal codice, con piccola variazione d'intonazione a ogni colpo, posizione stereo secondo la posizione sullo schermo, limitatore in uscita, pausa minima per suono e tetto agli strati contemporanei. Nessun file audio esterno, quindi nessuna licenza da attribuire.
+- **Suoni delle armi riscritti** (`src/core/audio.ts`): ogni arma è un insieme di strati (scatto, corpo, colpo grave, coda) generati dal codice, con piccola variazione d'intonazione a ogni colpo, posizione stereo secondo la posizione sullo schermo, limitatore in uscita, pausa minima per suono e tetto agli strati contemporanei. (Dalla 1.3 sopra questi strati suonano campioni reali, vedi Novità 1.3.)
 - **Doppietta di Ettore**: suono nuovo a due canne (due botti a 0,10 s, molto più grave del fucile del giocatore) con scatto di apertura; la prima scarica di una serie è piena, le successive al 75%. Il ventaglio ha una variante con fischio d'aria.
 - **Ettore** cammina al doppio della velocità (92 px/s, animazione al doppio); i tempi di preavviso degli attacchi non sono cambiati.
 - **Moto CRE**: appena Ettore perde la prima delle tre barre di vita (66,7%) afferra la moto e la scaglia (foglio di 14 fotogrammi, i primi 11 usati in ordine). Parte una volta sola (flag impostato subito, quindi anche con danni enormi in un colpo), preavviso di circa 1,6 s con un mirino a terra, traiettoria ad arco, 32 di danno in volo oppure allo schianto, esplosione, e poi riprende il comportamento normale. Le fasi 2 e 3 aspettano la fine dell'evento. Prova: `tests/ettore_moto.py`.

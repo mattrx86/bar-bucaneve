@@ -103,14 +103,30 @@ for im in ims: pv.alpha_composite(im, (x, H - im.height)); x += im.width + 8
 pv.save(PREV)
 voci = {}
 tmp = tempfile.mkdtemp()
-for f in sorted(os.listdir(VOCI)):
-    nome, ext = os.path.splitext(f)
-    if ext.lower() not in ('.m4a', '.mp3', '.wav', '.ogg', '.aac'): continue
-    out = os.path.join(tmp, nome + '.mp3')
-    subprocess.run(['ffmpeg', '-v', 'error', '-y', '-i', os.path.join(VOCI, f), '-af',
-                    'silenceremove=start_periods=1:start_threshold=-45dB:stop_periods=-1:stop_threshold=-45dB:stop_duration=0.4,loudnorm=I=-14:TP=-1.5',
-                    '-ac', '1', '-ar', '32000', '-b:a', '72k', out], check=True)
-    voci[nome.lower()] = 'data:audio/mpeg;base64,' + base64.b64encode(open(out, 'rb').read()).decode()
+# Le voci stanno in sottocartelle che dicono IN QUALE STADIO si sentono: voci/strada, voci/bucaneve (Giova),
+# voci/ettore (cantina). I file direttamente in voci/ si sentono sempre. Un file che comincia per "sottofondo"
+# non e' una voce ma il brano di quello stadio (es. "sottofondo boss giova.m4a" -> musica "giova").
+voci_fase = {}
+musica_stadio = {}
+ESTENSIONI = ('.m4a', '.mp3', '.wav', '.ogg', '.aac', '.mp4')
+for radice, _cartelle, files in sorted(os.walk(VOCI)):
+    rel = os.path.relpath(radice, VOCI)
+    fase = '' if rel == '.' else rel.split(os.sep)[0].lower()
+    for f in sorted(files):
+        nome = f
+        while os.path.splitext(nome)[1].lower() in ESTENSIONI: nome = os.path.splitext(nome)[0]   # "x.m4a.mp4" -> "x"
+        if os.path.splitext(f)[1].lower() not in ESTENSIONI: continue
+        chiave = nome.lower().replace(' ', '_')
+        src = os.path.join(radice, f)
+        if chiave.startswith('sottofondo'):
+            musica_stadio[chiave.split('_')[-1]] = src
+            continue
+        out = os.path.join(tmp, chiave + '.mp3')
+        subprocess.run(['ffmpeg', '-v', 'error', '-y', '-i', src, '-vn', '-af',
+                        'silenceremove=start_periods=1:start_threshold=-45dB:stop_periods=-1:stop_threshold=-45dB:stop_duration=0.4,loudnorm=I=-14:TP=-1.5',
+                        '-ac', '1', '-ar', '32000', '-b:a', '72k', out], check=True)
+        voci[chiave] = 'data:audio/mpeg;base64,' + base64.b64encode(open(out, 'rb').read()).decode()
+        if fase: voci_fase[chiave] = fase
 # ---------------------------------------------------------------------------
 # Voci "derivate": finche' non registrate la voce vera di un personaggio, ne ricaviamo una
 # cambiando il timbro di una registrazione esistente (piu' acuta, piu' grave, "ubriaca"...).
@@ -136,6 +152,7 @@ for nuovo, (src, pitch, vel, eff) in DERIVATE.items():
     filt = f'asetrate=32000*{pitch},aresample=32000,atempo={max(0.5, min(2.0, vel / pitch))}' + (',' + eff if eff else '')
     subprocess.run(['ffmpeg', '-v', 'error', '-y', '-i', sorg, '-af', filt, '-ac', '1', '-ar', '32000', '-b:a', '64k', out], check=True)
     voci[nuovo] = 'data:audio/mpeg;base64,' + base64.b64encode(open(out, 'rb').read()).decode()
+    voci_fase[nuovo] = 'bucaneve' if nuovo.startswith('giova') else 'ettore' if nuovo.startswith('ettore') else 'strada'
 # ---------------------------------------------------------------------------
 # Foglio armi ed esplosioni (grafica/oggetti/armi.png): elementi per riga, da sinistra.
 # (nome, riga, x0, x1, larghezza in gioco, contorno scuro?)  x in pixel del foglio originale
@@ -191,6 +208,12 @@ if _mg:
     _sm = to_small(_a, 28 * 1.5 / _a.shape[1])
     fx['mitra_mano'] = dict(data=b64png(Image.fromarray(_sm)), w=round(_sm.shape[1] / 1.5, 1), h=round(_sm.shape[0] / 1.5, 1), d=1.5)
 
+# --- schermata del titolo (grafica/titolo/schermata.png, 16:9): ridotta a 384x216 di gioco a densita' 1,5 (576x324) ---
+_tt = os.path.join(os.path.dirname(SHEET), '..', 'titolo', 'schermata.png')
+if os.path.isfile(_tt):
+    _t = Image.open(_tt).convert('RGB').resize((576, 324), Image.Resampling.BOX)
+    fx['titolo'] = dict(data=b64png(_t.convert('RGBA')), w=384, h=216, d=1.5)
+
 # --- bottiglia "standard" (verde originale) lanciata dagli ubriachi della strada ---
 _bt = os.path.join(os.path.dirname(SHEET), 'Bottiglia Verde Pixel Art.png')
 if os.path.isfile(_bt):
@@ -221,10 +244,87 @@ if MUSICA and os.path.isdir(MUSICA):
         musica[nome.lower()] = 'data:audio/mpeg;base64,' + base64.b64encode(open(out, 'rb').read()).decode()
         shutil.copy(out, PREV.replace('oggetti.png', 'musica_' + nome + '.mp3'))
 
+for nome, src in musica_stadio.items():
+    out = os.path.join(tmp, 'mus_' + nome + '.mp3')
+    durata = float(subprocess.run(['ffprobe', '-v', 'error', '-show_entries', 'format=duration', '-of', 'csv=p=0', src], capture_output=True, text=True, check=True).stdout.strip())
+    # brano breve in ciclo: niente dissolvenza lunga (sentirebbe un buco a ogni giro), solo un velo per evitare lo scatto
+    filtro = 'loudnorm=I=-16:TP=-1.5:LRA=11' + (',afade=t=in:d=0.02' if durata < 20 else '')
+    subprocess.run(['ffmpeg', '-v', 'error', '-y', '-i', src, '-vn', '-af', filtro, '-ac', '2', '-ar', '44100', '-c:a', 'libmp3lame', '-b:a', '80k', out], check=True)
+    musica[nome] = 'data:audio/mpeg;base64,' + base64.b64encode(open(out, 'rb').read()).decode()
+
+# ---------------------------------------------------------------------------
+# Effetti sonori delle armi: campioni reali CC0 (grafica/sfx/, vedi CREDITI.md), ritagliati, intonati e
+# normalizzati qui. Escono come WAV mono 16 bit a 32 kHz in `SFX`: ogni voce e' una LISTA di varianti,
+# audio.ts ne sceglie una a caso a ogni colpo (niente "mitragliatrice a campione ripetuto").
+# ---------------------------------------------------------------------------
+import wave
+SFX_DIR = os.path.join(os.path.dirname(os.path.abspath(VOCI)), 'sfx')
+SR_SFX = 32000
+def _carica(nome):
+    raw = subprocess.run(['ffmpeg', '-v', 'error', '-i', os.path.join(SFX_DIR, nome + '.ogg'), '-ac', '1', '-ar', str(SR_SFX),
+                          '-f', 'f32le', '-'], capture_output=True, check=True).stdout
+    return np.frombuffer(raw, dtype=np.float32).copy()
+def _ritaglia(x, durata, fade=0.03):
+    x = x[:int(durata * SR_SFX)].copy()
+    n = min(len(x), int(fade * SR_SFX))
+    if n > 0: x[-n:] *= np.linspace(1, 0, n)
+    return x
+def _intona(x, semitoni):
+    f = 2 ** (semitoni / 12.0)               # >1 = piu' acuto e piu' corto
+    t = np.arange(0, len(x) - 1, f)
+    return np.interp(t, np.arange(len(x)), x).astype(np.float32)
+def _filtra(x, filtro):
+    if not filtro: return x
+    raw = subprocess.run(['ffmpeg', '-v', 'error', '-f', 'f32le', '-ar', str(SR_SFX), '-ac', '1', '-i', '-', '-af', filtro,
+                          '-f', 'f32le', '-'], input=x.tobytes(), capture_output=True, check=True).stdout
+    return np.frombuffer(raw, dtype=np.float32).copy()
+def _somma(*parti):
+    n = max(off + len(x) for off, x in parti)
+    out = np.zeros(n, dtype=np.float32)
+    for off, x in parti: out[off:off + len(x)] += x
+    return out
+def _wav(x, picco=0.8):
+    m = float(np.max(np.abs(x))) or 1.0
+    y = np.clip(x / m * picco, -1, 1)
+    # il campione parte da zero e finisce a zero: niente "click"
+    y[:8] *= np.linspace(0, 1, 8)
+    buf = io.BytesIO()
+    with wave.open(buf, 'wb') as w:
+        w.setnchannels(1); w.setsampwidth(2); w.setframerate(SR_SFX)
+        w.writeframes((y * 32767).astype('<i2').tobytes())
+    return 'data:audio/wav;base64,' + base64.b64encode(buf.getvalue()).decode()
+
+sfx_out = {}
+if os.path.isdir(SFX_DIR):
+    C = {n: _carica(n) for n in ('shot_01', 'shot_02', 'shot_03', 'bang_01', 'bang_03', 'bang_06', 'bang_09', 'cannon_01', 'cannon_02', 'cannon_04')
+         if os.path.exists(os.path.join(SFX_DIR, n + '.ogg'))}
+    if len(C) == 10:
+        d = int(0.09 * SR_SFX)                                # distanza tra le due canne
+        sfx_out['pistola']  = [_wav(_ritaglia(C['shot_02'], 0.32)), _wav(_ritaglia(C['shot_03'], 0.26)),
+                               _wav(_ritaglia(_intona(C['shot_02'], 1.0), 0.30))]
+        sfx_out['mitra']    = [_wav(_ritaglia(C['shot_01'], 0.13, 0.05)), _wav(_ritaglia(C['shot_03'], 0.12, 0.05)),
+                               _wav(_ritaglia(_intona(C['shot_01'], 1.5), 0.12, 0.05))]
+        sfx_out['fucile']   = [_wav(_ritaglia(_filtra(C['bang_06'], 'lowpass=f=6000'), 0.75, 0.15)),
+                               _wav(_ritaglia(_filtra(C['bang_09'], 'lowpass=f=6000'), 0.70, 0.15))]
+        sfx_out['razzo']    = [_wav(_ritaglia(C['cannon_02'], 1.1, 0.25))]
+        sfx_out['boom']     = [_wav(_ritaglia(C['bang_03'], 0.9, 0.2)), _wav(_ritaglia(C['cannon_01'], 1.0, 0.2)),
+                               _wav(_ritaglia(C['cannon_04'], 0.8, 0.2))]
+        sfx_out['motoImpatto'] = [_wav(_ritaglia(_intona(C['cannon_01'], -2), 0.9, 0.2))]
+        # Ettore: due botti ravvicinati, piu' gravi e pesanti di quelli del giocatore
+        a, b = _intona(C['bang_06'], -3), _intona(C['bang_09'], -4)
+        sfx_out['doppietta'] = [_wav(_ritaglia(_somma((0, a), (d, b)), 1.0, 0.25)),
+                                _wav(_ritaglia(_somma((0, b), (d, a)), 1.0, 0.25))]
+        c = _intona(C['cannon_04'], -2)
+        sfx_out['doppiettaVentaglio'] = [_wav(_ritaglia(_somma((0, a), (d, b), (2 * d, c)), 1.1, 0.3))]
+    else:
+        print('ATTENZIONE: campioni mancanti in', SFX_DIR, '- le armi usano solo i suoni sintetizzati')
+
 with open(OUT, 'w') as f:
     f.write('// GENERATO da tools/build_extra.py - non modificare a mano.\n')
     f.write('export const PROPS: Record<string, { data: string; w: number; h: number; d: number }> = ' + json.dumps(props) + ';\n')
     f.write('export const VOCI: Record<string, string> = ' + json.dumps(voci) + ';\n')
+    f.write('export const VOCI_FASE: Record<string, string> = ' + json.dumps(voci_fase) + ';\n')
     f.write('export const FX: Record<string, { data: string; w: number; h: number; d: number }> = ' + json.dumps(fx) + ';\n')
+    f.write('export const SFX: Record<string, string[]> = ' + json.dumps(sfx_out) + ';\n')
     f.write('export const MUSICA: Record<string, string> = ' + json.dumps(musica) + ';\n')
 print(len(props), 'oggetti,', len(voci), 'voci,', len(fx), 'effetti,', len(musica), 'brani,', os.path.getsize(OUT) // 1024, 'KB')

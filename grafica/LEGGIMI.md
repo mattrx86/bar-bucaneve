@@ -27,7 +27,10 @@ Per cancellare un file: apritelo, menu **⋯** in alto a destra → **Delete fil
 | `livello3-cantina/boss-ettore/` | Ettore: pose (**17**) e ritratto grande | `pose.png`, `ritratto.png` | PNG |
 | `oggetti/` | foglio degli oggetti scenici (38 oggetti in 5 righe) | `oggetti.png` | PNG trasparente |
 | `voci/` | voci registrate | vedi elenco sotto | `.m4a` `.mp3` `.wav` (anche dal telefono) |
-| `musica/` | brani interi, usati dal gioco a volume basso | `Strada`, `Ettore` | `.mp3` |
+| `musica/` | brani interi, usati dal gioco a volume basso | `Strada`, `Ettore`, `Menu` | `.mp3` |
+| `voci/strada/`, `voci/bucaneve/`, `voci/ettore/` | voci che suonano solo in quello stadio; un file `sottofondo <nome>` è la musica di quello stadio | vedi elenco sotto | `.m4a` `.mp3` `.wav` `.mp4` |
+| `titolo/` | immagine della schermata del titolo | `schermata.png` | PNG 16:9 |
+| `sfx/` | campioni degli spari (CC0, vedi `CREDITI.md`) | `shot_*`, `bang_*`, `cannon_*` | `.ogg` |
 
 I nomi dei file **non devono avere spazi né accenti**.
 

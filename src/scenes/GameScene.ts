@@ -20,7 +20,7 @@ import { Bullet, BulletOpts, Enemy, Player, World, BossBase, Giova, Ettore } fro
 interface Prop { s: Phaser.GameObjects.Image; def: PropPos; vita: number; rompe: Rottura }
 import { Controls } from '../core/controls';
 import { mostraTouch } from '../core/touch';
-import { sfx, setMuted, isMuted, voce, musica, parla } from '../core/audio';
+import { sfx, setMuted, isMuted, voce, musica, parla, setFaseAudio } from '../core/audio';
 import { loadSave, writeSave } from '../core/save';
 import { txt, zoomCamera, PixelText } from '../core/ui';
 import type { Risultato } from './ResultScene';
@@ -151,6 +151,7 @@ export class GameScene extends Phaser.Scene implements World {
     this.creaHud();
     this.cameras.main.fadeIn(400);
 
+    setFaseAudio(this.fase === 'strada' ? 'strada' : 'ettore');
     if (this.fase === 'strada') {
       musica('strada');
       this.time.delayedCall(600, () => parla([this.hero.id, 'eroe'], 'via'));
@@ -385,13 +386,14 @@ export class GameScene extends Phaser.Scene implements World {
     const arenaX = Math.round(BG.street.barX + (BG.street.barW - VIEW_W) / 2);
     if (!this.arena && !this.giovaArrivato && this.onda >= WAVES.length && this.bloccoDx === Infinity && xg > arenaX + 90) {
       this.arena = { x: arenaX }; this.giovaArrivato = true; this.st.checkpoint = 'giova';
+      setFaseAudio('bucaneve'); musica('giova');
       this.time.delayedCall(700, () => {
         this.boss = new Giova(this, arenaX + VIEW_W + 40);
         this.scalaBoss(this.boss, 1.5);
         this.colpitoNelBoss = false;
         this.boss.onMorte = () => { parla('giova', 'muore', 1, 0); this.bonusPerfetto(); };
         this.mostraBossHud();
-        this.annuncio('GIOVA', 'IL BUTTAFUORI DEL BUCANEVE');
+        this.annuncio('GIOVANNI', 'IL BUTTAFUORI DEL BUCANEVE');
       });
     }
     // Giova battuto: si entra nel bar

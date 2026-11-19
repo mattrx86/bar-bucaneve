@@ -17,18 +17,19 @@ export const DENSITA = 1.5;
 export const pix = (v: number): number => Math.round(v * DENSITA) / DENSITA;
 
 // ---------------------------------------------------------------------------
-// EROI (lo sprite è il foglio `hero_<id>` generato da tools/build_assets.py)
+// EROI. `id` = nome del file in grafica/personaggi (e delle voci); `nome` = quello che si legge in gioco.
+// (lo sprite è il foglio `hero_<id>` generato da tools/build_assets.py)
 // ---------------------------------------------------------------------------
 export interface HeroDef { id: string; nome: string; motto: string; arma: string }
 
 const ELENCO_EROI: HeroDef[] = [
-  { id: 'daniele', nome: 'DANIELE', motto: 'Cintura nera di pazienza', arma: 'pistola' },
-  { id: 'marco', nome: 'MARCO', motto: 'Il primo ad arrivare al bar', arma: 'pistola' },
-  { id: 'paolo', nome: 'PAOLO', motto: 'Sempre pronto per un altro giro', arma: 'pistola' },
-  { id: 'michela', nome: 'MICHELA', motto: 'Arcobaleno con la mira', arma: 'pistola' },
-  { id: 'roberto', nome: 'ROBERTO', motto: 'Muscoli prima, domande dopo', arma: 'pistola' },
+  { id: 'daniele', nome: 'DANDAN', motto: 'Cintura nera di pazienza', arma: 'pistola' },
+  { id: 'marco', nome: 'GANZOIA', motto: 'Il primo ad arrivare al bar', arma: 'pistola' },
+  { id: 'paolo', nome: 'PAUL', motto: 'Sempre pronto per un altro giro', arma: 'pistola' },
+  { id: 'michela', nome: 'PIPPA', motto: 'Arcobaleno con la mira', arma: 'pistola' },
+  { id: 'roberto', nome: 'FOLE', motto: 'Muscoli prima, domande dopo', arma: 'pistola' },
   { id: 'vero', nome: 'VERO', motto: 'Corre più veloce dei guai', arma: 'pistola' },
-  { id: 'mattia', nome: 'MATTIA', motto: 'Dipinge anche a colpi di pistola', arma: 'pistola' },
+  { id: 'mattia', nome: 'SGAN', motto: 'Dipinge anche a colpi di pistola', arma: 'pistola' },
 ];
 /** Eroi giocabili: solo quelli che hanno il foglio in grafica/personaggi. Un foglio nuovo con un
  *  nome non in elenco compare lo stesso, con un motto generico. */
@@ -196,7 +197,7 @@ export const PROPS_CANTINA: PropPos[] = [];
 // ---------------------------------------------------------------------------
 // BOSS
 // ---------------------------------------------------------------------------
-export const GIOVA = { nome: 'GIOVA', sottotitolo: 'IL BUTTAFUORI DEL BUCANEVE', vita: 600, danno: 18, punti: 2000 };
+export const GIOVA = { nome: 'GIOVANNI', sottotitolo: 'IL BUTTAFUORI DEL BUCANEVE', vita: 600, danno: 18, punti: 2000 };
 export const ETTORE = { nome: 'ETTORE', sottotitolo: 'IL BARISTA CON LA DOPPIETTA', vita: 3200, danno: 16, punti: 5000 };
 
 export const FRASI_ETTORE = ['VEI CHI CHE TE MATO!', 'CHI HA TOCCATO IL MIO GELATO?', 'QUI SI PAGA PRIMA!', 'ADESSO TI SISTEMO IO!'];
