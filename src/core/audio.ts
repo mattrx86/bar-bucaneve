@@ -126,10 +126,20 @@ let musSrc: AudioBufferSourceNode | null = null;
 let musGain: GainNode | null = null;
 let musNome: string | null = null;
 
+/** Trova il brano anche se il file è stato caricato con un nome diverso da quello che
+ *  il gioco chiede: "battaglia-ettore" accetta anche `Ettore.mp3`, "strada" anche
+ *  `Strada.mp3`. Così chi carica la musica non deve indovinare il nome esatto. */
+function risolviMusica(nome: string): string | null {
+  if (MUSICA[nome]) return nome;
+  const chiavi = Object.keys(MUSICA);
+  for (const p of nome.split('-').reverse()) if (MUSICA[p]) return p;
+  return chiavi.find((k) => k.includes(nome) || nome.includes(k)) ?? null;
+}
 async function decodificaMusica(nome: string): Promise<AudioBuffer | null> {
   if (nome in musBuf) return musBuf[nome];
   musBuf[nome] = null;
-  const d = MUSICA[nome]; if (!d || !ctx) return null;
+  const vero = risolviMusica(nome);
+  const d = vero ? MUSICA[vero] : undefined; if (!d || !ctx) return null;
   try {
     const bin = atob(d.split(',')[1]);
     const arr = new Uint8Array(bin.length);
