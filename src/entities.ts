@@ -4,10 +4,11 @@
 // Gli sprite sono strisce generate da tools/build_assets.py (SHEETS).
 // ============================================================================
 import Phaser from 'phaser';
-import { GROUND_Y, pix, WEAPONS, WeaponDef, HeroDef, EnemyDef, GIOVA, ETTORE, FRASI_ETTORE, FRASI_GIOVA, DiffDef, BALCONE_Y } from './content/defs';
+import { GROUND_Y, pix, WEAPONS, ARMA_MANO, POSE_ARMA, WeaponDef, HeroDef, EnemyDef, GIOVA, ETTORE, FRASI_ETTORE, FRASI_GIOVA, DiffDef, BALCONE_Y } from './content/defs';
 import { SHEETS } from './content/sprites';
 import { sfx, voce, parla } from './core/audio';
-import { fxTex, img, PROIETTILI_DISEGNATI } from './core/fx';
+import { fxTex, fxEroe, img, PROIETTILI_DISEGNATI } from './core/fx';
+import { FX } from './content/extra';
 
 export const GRAVITY = 980;
 const R = Math.PI / 180;
@@ -25,6 +26,10 @@ export interface BulletOpts {
   x: number; y: number; ang: number; speed: number; danno: number;
   tex: string; colore?: number; ostile: boolean; gittata: number;
   perforante?: boolean; esplosivo?: number; arco?: boolean; scala?: number;
+  /** id del personaggio che spara: sceglie il colore del proiettile (src/content/colori.ts) */
+  eroe?: string;
+  /** nome del disegno (foglio armi/oggetti) da usare al posto di quello standard della texture */
+  disegno?: string;
   /** Chi ha sparato (indice del giocatore, 0 o 1): serve ad assegnare i punti. */
   chi?: number;
 }
@@ -60,6 +65,12 @@ export interface World {
   diff: DiffDef;
 }
 
+/** Posizione stereo di un suono in base a dove avviene rispetto al centro dello schermo (-0,6 ... 0,6). */
+export function panDi(w: World, x: number): number {
+  const l = w.limiti();
+  return Math.max(-0.6, Math.min(0.6, ((x - (l.sx + l.dx) / 2) / ((l.dx - l.sx) / 2)) * 0.6));
+}
+
 /** Lampo bianco (o normale) su uno sprite. */
 export function lampeggia(s: Phaser.GameObjects.Sprite, on: boolean, colore = 0xffffff): void {
   if (on) s.setTint(colore).setTintMode(Phaser.TintModes.FILL);
@@ -76,7 +87,7 @@ export class Bullet {
   colpiti = new Set<unknown>();
   constructor(public w: World, public o: BulletOpts) {
     // proiettili, razzi e granate disegnati da voi (se ci sono), altrimenti quelli del codice
-    const dis = PROIETTILI_DISEGNATI[o.tex] ? fxTex(PROIETTILI_DISEGNATI[o.tex], o.tex) : { key: o.tex, s: 1 };
+    const dis = o.disegno ? fxTex(o.disegno, o.tex) : PROIETTILI_DISEGNATI[o.tex] ? fxEroe(PROIETTILI_DISEGNATI[o.tex], o.eroe, o.tex) : { key: o.tex, s: 1 };
     this.sprite = w.sc.add.image(o.x, o.y, dis.key).setDepth(60).setRotation(o.ang);
     if (o.colore !== undefined && dis.key === o.tex) this.sprite.setTint(o.colore);
     this.sprite.setScale((o.scala ?? 1) * dis.s);
@@ -127,13 +138,37 @@ export class Player {
   bocca(): { x: number; y: number; ang: number } {
     const S = SHEETS[this.sheet].muzzle;
     const m = S[this.posa] ?? S.shoot;
-    // La quota resta quella della posa di tiro: nelle pose di corsa la canna è disegnata
-    // più in basso, e il flusso di proiettili si abbassava di 15 px fermandosi e ballava
-    // da un fotogramma all'altro (misurati fino a 9 px di oscillazione su alcuni eroi).
-    const my = this.posa.startsWith('run_') ? S.shoot[1] : m[1];
+    // Quota e distanza misurate sul fotogramma effettivamente mostrato (anche in corsa,
+    // accovacciato o in salto): il colpo esce dalla canna disegnata, mai dalla testa.
+    const my = m[1];
     const dir = this.guardaDx ? 1 : -1;
     const ang = this.su ? -Math.PI / 2 : (this.guardaDx ? 0 : Math.PI);
+    // Con un'arma disegnata in mano (ARMA_MANO) il colpo esce dalla SUA canna, non da quella della pistola sottostante.
+    const am = ARMA_MANO[this.arma.id], fx = am ? FX[am.fx] : undefined;
+    if (am && fx && POSE_ARMA.test(this.posa)) {
+      const avanti = (am.mx - am.gx) * fx.w - am.pistola;
+      if (this.posa === 'shoot_up') return { x: this.x + (m[0] + 0) * dir, y: this.y + m[1] + am.pistola - (am.mx - am.gx) * fx.w, ang };
+      return { x: this.x + (m[0] + avanti) * dir, y: this.y + my, ang };
+    }
     return { x: this.x + m[0] * dir, y: this.y + my, ang };
+  }
+
+  /** Arma disegnata sovrapposta alla mano: segue la posa, il verso e la canna misurata sul disegno. */
+  private armaSprite?: Phaser.GameObjects.Image;
+  nascondiArma(): void { this.armaSprite?.setVisible(false); }
+  private aggiornaArmaMano(posa: string): void {
+    const am = ARMA_MANO[this.arma.id], fx = am ? FX[am.fx] : undefined;
+    if (!am || !fx || !POSE_ARMA.test(posa) || this.morto) { this.armaSprite?.setVisible(false); return; }
+    const key = `fx_${am.fx}`;
+    if (!this.armaSprite) this.armaSprite = this.w.sc.add.image(0, 0, key).setDepth(50.2);
+    else if (this.armaSprite.texture.key !== key) this.armaSprite.setTexture(key);
+    const S = SHEETS[this.sheet].muzzle, m = S[posa] ?? S.shoot, dir = this.guardaDx ? 1 : -1;
+    const su = posa === 'shoot_up';
+    const off = (am.gy - am.my) * fx.h;               // l'impugnatura sta sotto la linea della canna
+    const gx = su ? m[0] + off : m[0] - am.pistola, gy = su ? m[1] + am.pistola : m[1] + off;
+    this.armaSprite.setOrigin(am.gx, am.gy).setScale(dir / fx.d, 1 / fx.d)
+      .setPosition(pix(this.x + gx * dir), pix(this.y + gy)).setRotation(su ? -dir * Math.PI / 2 : 0)
+      .setAlpha(this.sprite.alpha).setVisible(true);
   }
   box(): Phaser.Geom.Rectangle {
     const h = this.crouch ? 30 : 46;
@@ -226,6 +261,7 @@ export class Player {
     setPose(this.sprite, this.sheet, posa);
     this.sprite.setPosition(pix(this.x), pix(this.y)).setFlipX(!this.guardaDx);
     this.sprite.setAlpha(this.invuln > 0 && !this.morto ? (Math.floor(this.w.sc.time.now / 60) % 2 ? 0.4 : 1) : 1);
+    this.aggiornaArmaMano(posa);
   }
 
   private spara(): void {
@@ -239,15 +275,16 @@ export class Player {
       const sp = a.dispersione ? Phaser.Math.FloatBetween(-a.dispersione, a.dispersione) * R : 0;
       this.w.sparaProiettile({
         x: b.x, y: b.y, ang: b.ang + sp, speed: a.velocita, danno: a.danno,
-        tex: a.id === 'lanciarazzi' ? 'rocket' : a.id === 'fiamma' ? 'flame' : 'bullet',
+        tex: a.id === 'lanciarazzi' ? 'rocket' : 'bullet',
         colore: a.colore, ostile: false, gittata: a.gittata, perforante: a.perforante, esplosivo: a.esplosivo,
-        scala: a.id === 'fiamma' ? 0.9 : 1, chi: this.idx,
+        scala: 1, chi: this.idx, eroe: this.def.id,
       });
     }
-    const fl = img(this.w.sc, b.x, b.y, a.id === 'pistola' ? 'lampo_1' : 'lampo_2', 'flash0').setOrigin(0, 0.5).setDepth(61).setRotation(b.ang);
+    const ft = fxEroe(a.id === 'pistola' ? 'lampo_1' : 'lampo_2', this.def.id, 'flash0');
+    const fl = this.w.sc.add.image(b.x, b.y, ft.key).setScale(ft.s).setOrigin(0, 0.5).setDepth(61).setRotation(b.ang);
     this.w.sc.tweens.add({ targets: fl, alpha: 0, duration: 70, onComplete: () => fl.destroy() });
-    if (a.id !== 'fiamma' && a.id !== 'lanciarazzi') this.w.bossolo(this.x + (this.guardaDx ? 4 : -4), b.y + 3, this.guardaDx ? -1 : 1);
-    sfx(a.id === 'mitragliatrice' ? 'mitra' : a.id === 'fucile' ? 'fucile' : a.id === 'lanciarazzi' ? 'razzo' : a.id === 'fiamma' ? 'fiamma' : 'pistola');
+    if (a.id !== 'lanciarazzi') this.w.bossolo(this.x + (this.guardaDx ? 4 : -4), b.y + 3, this.guardaDx ? -1 : 1);
+    sfx(a.id === 'mitragliatrice' ? 'mitra' : a.id === 'fucile' ? 'fucile' : a.id === 'lanciarazzi' ? 'razzo' : 'pistola', 1, panDi(this.w, this.x));
   }
 
   private lanciaBomba(): void {
@@ -255,7 +292,7 @@ export class Player {
     const d = this.guardaDx ? 1 : -1;
     this.w.sparaProiettile({
       x: this.x + 6 * d, y: this.y - 50, ang: this.guardaDx ? -55 * R : Math.PI + 55 * R,
-      speed: 250, danno: 60, tex: 'bomba', ostile: false, gittata: 900, esplosivo: 46, arco: true, chi: this.idx,
+      speed: 250, danno: 60, tex: 'bomba', ostile: false, gittata: 900, esplosivo: 46, arco: true, chi: this.idx, eroe: this.def.id,
     });
   }
 
@@ -432,7 +469,7 @@ export class Enemy {
     // traiettoria ad arco che atterra vicino al giocatore: si evita saltando o spostandosi
     const T = this.alto ? 1.05 : 0.95, dxp = Phaser.Math.Clamp(p.x - x0, -230, 230);
     const vx = dxp / T, vy = (GROUND_Y - 6 - y0 - 0.5 * GRAVITY * 0.6 * T * T) / T;
-    this.w.sparaProiettile({ x: x0, y: y0, ang: Math.atan2(vy, vx), speed: Math.hypot(vx, vy), danno: this.def.danno, tex: 'bottiglia', ostile: true, gittata: 900, arco: true });
+    this.w.sparaProiettile({ x: x0, y: y0, ang: Math.atan2(vy, vx), speed: Math.hypot(vx, vy), danno: this.def.danno, tex: 'bottiglia', disegno: 'bottiglia_strada', ostile: true, gittata: 900, arco: true });
     sfx('bomba');
   }
 
@@ -561,6 +598,8 @@ export class Giova extends BossBase {
 // Ciclo: cammina -> mira (linea rossa = preavviso) -> sparo -> mira -> sparo -> ricarica.
 // In ricarica è scoperto e prende più danno. Sotto metà vita: fase 2, più veloce.
 // ---------------------------------------------------------------------------
+/** Velocita' di camminata di Ettore (px/s): 92 = il doppio dei 46 della 1.1. */
+const VEL_ETTORE = 92;
 export type AttaccoEttore = 'mirato' | 'ventaglio' | 'pioggia' | 'rasoterra';
 
 export class Ettore extends BossBase {
@@ -580,9 +619,15 @@ export class Ettore extends BossBase {
   private ultimo: AttaccoEttore | null = null;
   onFase2?: () => void;
   onFase3?: () => void;
+  /** Evento della moto: scatta UNA volta sola, appena Ettore ha perso la prima delle tre "barre" di vita. */
+  private motoFatta = false;
+  private motoT = 0; private motoLanciata = false; private motoMirino = false; private motoTx = 0;
+  private motoProj: { s: Phaser.GameObjects.Image; x: number; y: number; vx: number; vy: number; rot: number; colpiti: Set<Player> } | null = null;
   constructor(w: World, x: number) {
     super(w, 'boss_ettore', x, ETTORE.vita);
   }
+  /** Quando la moto sta volando o Ettore la sta preparando non si cambia fase: l'evento va finito. */
+  private inMoto(): boolean { return this.st === 'moto'; }
 
   /** Sceglie il prossimo attacco: più la vita scende, più il repertorio si allarga.
    *  Non ripete mai due volte di fila lo stesso, così il ritmo resta vario. */
@@ -631,10 +676,14 @@ export class Ettore extends BossBase {
     const p = this.w.bersaglio(this.x); const now = this.w.sc.time.now / 1000;
     this.lampo = Math.max(0, this.lampo - dt);
     if (this.morto) {
+      if (this.motoProj) { this.motoProj.s.destroy(); this.motoProj = null; }
       this.mortoT += dt;
       const f = this.mortoT < 0.2 ? 'hit' : this.mortoT < 0.5 ? 'death_01' : this.mortoT < 0.8 ? 'death_02' : this.mortoT < 1.1 ? 'death_03' : 'death_04';
       this.disegna(f); return;
     }
+    this.aggiornaMoto(dt);
+    if (!this.motoFatta && this.attivo && this.vita <= this.vitaMax * (2 / 3) && this.st !== 'entra' && this.st !== 'moto') this.iniziaMoto();
+    if (this.inMoto()) { this.eseguiMoto(dt); return; }
     if (this.fase === 1 && this.vita < this.vitaMax * 0.62) {
       this.fase = 2; this.fase2 = true;
       this.frase(['ADESSO MI ARRABBIO!']); sfx('bossUrlo'); voce('ettore_dunebuggy'); this.w.scuoti(300, 4); this.onFase2?.();
@@ -656,9 +705,9 @@ export class Ettore extends BossBase {
       case 'cammina': {
         this.guardaDx = dx > 0;
         const d = Math.abs(dx); let v = 0;
-        if (d > 170) v = Math.sign(dx) * 46; else if (d < 90) v = -Math.sign(dx) * 40;
+        if (d > 170) v = Math.sign(dx) * VEL_ETTORE; else if (d < 90) v = -Math.sign(dx) * (VEL_ETTORE - 6);
         this.x = Phaser.Math.Clamp(this.x + v * vel * dt, lim.sx + 40, lim.dx - 40);
-        this.disegna(v !== 0 ? `walk_0${(Math.floor(now * 6 * vel) % 4) + 1}` : 'idle');
+        this.disegna(v !== 0 ? `walk_0${(Math.floor(now * 12 * vel) % 4) + 1}` : 'idle');
         // Stargli incollato era la strategia ottimale e senza rischio: da vicino
         // risponde con una botta di calcio della doppietta invece di limitarsi ad arretrare.
         if (Math.abs(dx) < 62 && this.camminaT < 0.45) {
@@ -734,6 +783,78 @@ export class Ettore extends BossBase {
     }
   }
 
+
+  // ------------------------------------------------------------------ evento MOTO CRE
+  private iniziaMoto(): void {
+    this.motoFatta = true;           // impostato subito: non puo' scattare due volte neanche con danni enormi in un frame
+    this.st = 'moto'; this.motoT = 0; this.motoLanciata = false; this.motoMirino = false;
+    this.mira = null; this.bersagliPioggia = [];
+    this.scegliObiettivo();
+  }
+  /** Tempi (secondi veri, non accelerati dalla fase) e fotogrammi del foglio m_01..m_11.
+   *  Il preavviso dal momento in cui Ettore afferra la moto al lancio e' di 1,5 s abbondanti. */
+  private static readonly MOTO_FOTOGRAMMI: [number, string][] = [
+    [0.40, 'm_01'], [0.65, 'm_02'], [0.85, 'm_03'], [1.00, 'm_04'], [1.15, 'm_05'], [1.30, 'm_06'],
+    [1.45, 'm_07'], [1.62, 'm_08'], [1.95, 'm_09'], [2.10, 'm_10'], [2.35, 'm_11'],
+  ];
+  private eseguiMoto(dt: number): void {
+    const t0 = this.motoT; this.motoT += dt;
+    const T = this.motoT, bers = this.bers();
+    if (T < 2.1) this.guardaDx = bers.x > this.x;   // finche' prepara continua a girarsi verso il bersaglio
+    if (t0 === 0) {
+      this.frase(['LA MOTO!!']); sfx('bossUrlo'); this.w.scuoti(260, 3);
+      this.w.testo(this.x, this.y - 140, 'ATTENTO!', '#ff5050');
+    }
+    // fotogramma in base al tempo; dopo il lancio riprende fiato con la posa di ricarica
+    let f = 'reload_03';
+    for (const [fine, nome] of Ettore.MOTO_FOTOGRAMMI) if (T < fine) { f = nome; break; }
+    // il mirino compare quando la moto e' sopra la testa: e' il segnale di dove cadra'
+    if (!this.motoMirino && T >= 1.62) { this.motoMirino = true; this.motoTx = bers.x; this.w.mirino?.(this.motoTx); sfx('allarme'); }
+    if (!this.motoLanciata && T >= 2.0) this.lanciaMoto();
+    this.sprite.setFlipX(!this.guardaDx);
+    if (f.startsWith('m_')) {
+      setPose(this.sprite, 'ettore_moto', f);
+      this.sprite.setPosition(pix(this.x), this.y).setFlipX(!this.guardaDx);
+      lampeggia(this.sprite, this.lampo > 0);
+    } else this.disegna(f);
+    if (T >= 3.0) { this.st = 'cammina'; this.t = 0; this.camminaT = 0.5 + Math.random() * 0.3; }
+  }
+  private lanciaMoto(): void {
+    this.motoLanciata = true;
+    const dir = this.guardaDx ? 1 : -1;
+    const x0 = this.x + dir * 34, y0 = this.y - 112;
+    const tx = this.motoTx || this.bers().x;
+    const G = 520;
+    const T = Phaser.Math.Clamp(Math.abs(tx - x0) / 230, 0.7, 1.3);
+    const vx = (tx - x0) / T;
+    const vy = (this.y - 18 - y0 - 0.5 * G * T * T) / T;
+    const s = this.w.sc.add.image(x0, y0, 'moto_volo').setDepth(60).setScale(1 / SHEETS.moto_volo.d).setFlipX(!this.guardaDx);
+    this.motoProj = { s, x: x0, y: y0, vx, vy, rot: dir * 7, colpiti: new Set() };
+    sfx('motoLancio', 1, panDi(this.w, this.x)); this.w.scuoti(200, 4);
+  }
+  private aggiornaMoto(dt: number): void {
+    const m = this.motoProj; if (!m) return;
+    const G = 520;
+    m.vy += G * dt; m.x += m.vx * dt; m.y += m.vy * dt;
+    m.s.setPosition(m.x, m.y).rotation += m.rot * dt;
+    const box = new Phaser.Geom.Rectangle(m.x - 30, m.y - 20, 60, 40);
+    for (const p of this.w.giocatori) {
+      if (p.morto || m.colpiti.has(p)) continue;
+      if (Phaser.Geom.Intersects.RectangleToRectangle(box, p.box())) { m.colpiti.add(p); p.danno(ETTORE.danno * 2); }
+    }
+    const l = this.w.limiti();
+    const aTerra = m.y >= this.y - 14 && m.vy > 0;
+    if (aTerra || m.x < l.sx - 80 || m.x > l.dx + 80) {
+      if (aTerra) {
+        // schianto: esplosione, polvere, e chi e' vicino prende il colpo anche se non e' stato centrato in volo
+        this.w.boom(m.x, this.y, true); this.w.polvere?.(m.x, true); this.w.scuoti(380, 6);
+        sfx('motoImpatto', 1, panDi(this.w, m.x)); this.w.hitstop(0.05);
+        for (const p of this.w.giocatori) if (!p.morto && !m.colpiti.has(p) && Math.abs(p.x - m.x) < 42 && p.y > this.y - 24) { m.colpiti.add(p); p.danno(ETTORE.danno * 2); }
+      }
+      m.s.destroy(); this.motoProj = null;
+    }
+  }
+
   /** Mirini a terra dove cadranno le bottiglie: si vedono prima del lancio. */
   private bersagliPioggia: number[] = [];
   private segnaPioggia(): void {
@@ -775,7 +896,8 @@ export class Ettore extends BossBase {
       this.w.sparaProiettile({ x: this.mira.x, y: this.mira.y, ang: a, speed: this.velPallettoni(), danno: ETTORE.danno, tex: 'pellet', ostile: true, gittata: 440 });
     }
     this.lampoCanna(1.3);
-    sfx('fucile'); this.w.scuoti(120, 3);
+    // la prima scarica di una serie e' piena, le successive un po' piu' basse: non stanca e non copre la musica
+    sfx('doppietta', this.colpi > 1 ? 0.75 : 1, panDi(this.w, this.x)); this.w.scuoti(120, 3);
   }
 
   /** Ventaglio largo con UN BUCO: copre tutta l'altezza ma lascia un varco da infilare. */
@@ -791,7 +913,7 @@ export class Ettore extends BossBase {
       this.w.sparaProiettile({ x: this.mira.x, y: this.mira.y, ang: a, speed: this.velPallettoni() * 0.78, danno: ETTORE.danno, tex: 'pellet', ostile: true, gittata: 460 });
     }
     this.lampoCanna(1.6);
-    sfx('fucile'); this.w.scuoti(170, 4);
+    sfx('doppiettaVentaglio', 1, panDi(this.w, this.x)); this.w.scuoti(170, 4);
   }
 
   /** Bottiglie dal soffitto sui mirini già mostrati: obbliga a cambiare posto. */

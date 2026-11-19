@@ -21,6 +21,9 @@ VIL_ROWS = [[f'walk_{i:02d}' for i in range(1, 7)], ['attack_01', 'attack_02', '
 ETT_ROWS = [[f'walk_{i:02d}' for i in range(1, 5)], ['idle', 'tele_01', 'tele_02', 'shoot_01'],
             ['shoot_02', 'reload_01', 'reload_02', 'reload_03'], ['hit', 'death_01', 'death_02', 'death_03', 'death_04']]
 
+# Foglio "Ettore lancia la moto CRE": 14 fotogrammi in due righe da 7, in ordine di animazione.
+MOTO_ROWS = [[f'm_{i:02d}' for i in range(1, 8)], [f'm_{i:02d}' for i in range(8, 15)]]
+
 def modo(path):
     """Capisce da solo lo sfondo del foglio: trasparente, nero o bianco."""
     im = np.array(Image.open(path).convert('RGBA')).astype(int)
@@ -35,6 +38,7 @@ ALTEZZA_EROE = {'michela': 52, 'vero': 52}
 ENT = []  # chiave, file, sfondo, righe, posa di riferimento, altezza in gioco, dilatazione
 for f in cartella('personaggi'):
     nome = os.path.splitext(os.path.basename(f))[0].lower()
+    if nome.startswith('mitragliatrice'): continue   # e' l'arma da mettere in mano, non un personaggio
     ENT.append((f'hero_{nome}', f, modo(f), HERO_ROWS, 'idle', ALTEZZA_EROE.get(nome, 54), 12))
 for f in cartella('livello1-strada', 'gelatai'):
     ENT.append(('vil_' + os.path.splitext(os.path.basename(f))[0].lower(), f, modo(f), VIL_ROWS, 'walk_01', 56, 12))
@@ -56,6 +60,10 @@ if not os.path.isfile(_g):
         )
 ENT.append(('boss_giova', _g, modo(_g), VIL_ROWS, 'walk_01', 76, 12))
 _e = J('livello3-cantina', 'boss-ettore', 'pose.png'); ENT.append(('boss_ettore', _e, modo(_e), ETT_ROWS, 'walk_01', 120, 4))
+# Il foglio della moto ha una risoluzione diversa da pose.png: l'altezza di riferimento (m_01, Ettore in piedi,
+# 172 px) e' scelta in modo che Ettore risulti alto quanto nella posa 'idle' di pose.png (238 px -> 116,6 px di gioco).
+_m = glob.glob(J('livello3-cantina', 'boss-ettore', 'WhatsApp Image*.jpeg'))
+if _m: ENT.append(('ettore_moto', _m[0], modo(_m[0]), MOTO_ROWS, 'm_01', 116.6, 4))
 
 def to_small(img, s):
     """Riduce mantenendo pixel netti: niente colori intermedi creati dal filtro BOX."""
@@ -83,6 +91,7 @@ def b64jpg(im, q=88):
 # (personaggi, oggetti, casse, effetti, fondali). Valori possibili: 1 (pixel enormi), 1.5, 3 (pixel fini).
 DMAX = 1.5
 SHEETS = {}
+SHEETS_S = {}
 report = []
 for key, path, mode, ROWS, refpose, target, dil in ENT:
     a = load_mask(path, mode)
@@ -96,10 +105,21 @@ for key, path, mode, ROWS, refpose, target, dil in ENT:
         for n, c in zip(names, r):
             raw[n], rit = estrai_o_ritocca(key, n, c['img'])
             if rit: report.append(f'  ritocco usato: {key}/{n}')
+    if key == 'ettore_moto':
+        # la moto a terra (fotogramma 1) diventa il proiettile: e' la componente staccata da Ettore
+        from scipy import ndimage as _nd
+        _f = raw['m_01']; _al = _f[..., 3] > 0
+        _lab, _n = _nd.label(_al, structure=np.ones((3, 3)))
+        _sz = _nd.sum(_al, _lab, range(1, _n + 1)); _k = int(np.argsort(_sz)[-2]) + 1
+        _ys, _xs = np.where(_lab == _k)
+        MOTO_RAW = _f[_ys.min():_ys.max() + 1, _xs.min():_xs.max() + 1].copy()
+        _mk = (_lab[_ys.min():_ys.max() + 1, _xs.min():_xs.max() + 1] == _k)
+        MOTO_RAW[~_mk] = 0
     ref = raw[refpose]; rh = (ref[..., 3] > 0).any(1).sum()
     # densita': la texture ha d pixel per ogni pixel del gioco (max DMAX, mai ingrandire l'originale)
     d = DMAX  # stessa grandezza di pixel per tutti
     s = target * d / rh
+    SHEETS_S[key] = s
     fr = {}
     is_character = key.startswith(('hero_', 'vil_', 'boss_'))
     for n, im in raw.items():
@@ -119,6 +139,13 @@ for key, path, mode, ROWS, refpose, target, dil in ENT:
         h = sm.shape[0]
         low = m[int(h * 0.6):]
         cx = np.where(low)[1].mean() if low.any() else sm.shape[1] / 2
+        if key == 'ettore_moto':
+            # nei fotogrammi con la moto accanto o sulle spalle il baricentro dei piedi sposterebbe Ettore:
+            # si ancora sui pantaloni e scarponi (marrone) nell'ultimo quarto dell'altezza
+            _rgb = sm[..., :3].astype(int)
+            _br = (_rgb[..., 0] - _rgb[..., 2] > 30) & (_rgb[..., 0] < 150) & (abs(_rgb[..., 0] - _rgb[..., 1]) > 15) & (_rgb[..., 0] - _rgb[..., 1] < 60) & m
+            _br[:int(h * 0.78)] = False
+            if _br.any(): cx = np.where(_br)[1].mean()
         fr[n] = (sm, cx)
     L = int(np.ceil(max(cx for sm, cx in fr.values()))) + 2
     Rr = int(np.ceil(max(sm.shape[1] - cx for sm, cx in fr.values()))) + 2
@@ -137,7 +164,9 @@ for key, path, mode, ROWS, refpose, target, dil in ENT:
         if n == 'shoot_up':
             k = ys.argmin()
         else:
-            sel = (ys > h * 0.12) & (ys < h * 0.62)
+            # In corsa la faccia sporge piu' della pistola (tenuta sotto il mento): il punto piu' a destra
+            # della fascia alta era il NASO e i colpi nascevano all'altezza della testa. Si guarda sotto il mento.
+            sel = (ys > h * (0.36 if n.startswith('run_') else 0.12)) & (ys < h * 0.62)
             if not sel.any(): sel = ys >= 0
             idx = np.where(sel)[0]; k = idx[xs[idx].argmax()]
         muzzle[n] = [round((xs[k] + ox - half) / d, 1), round((ys[k] + oy - foot) / d, 1)]  # in pixel di gioco
@@ -146,6 +175,11 @@ for key, path, mode, ROWS, refpose, target, dil in ENT:
     # anteprima x2 su grigio con linea dei piedi
     pv = Image.new('RGBA', strip.size, (70, 78, 92, 255)); pv.alpha_composite(strip)
     pv.save(f'{PREV}/{key}.png')
+
+# --- la moto CRE come proiettile (stessa scala di Ettore nel suo foglio) ---
+if 'MOTO_RAW' in globals():
+    _sm = ink(to_small(MOTO_RAW, SHEETS_S['ettore_moto']))
+    SHEETS['moto_volo'] = dict(data=b64png(Image.fromarray(_sm)), cw=_sm.shape[1], ch=_sm.shape[0], foot=_sm.shape[0], d=DMAX, frames=['x'], muzzle={})
 
 # --- ritratto grande di Ettore (scheda di presentazione) ---
 _r = J('livello3-cantina', 'boss-ettore', 'ritratto.png'); a = peel(load_mask(_r, modo(_r)))

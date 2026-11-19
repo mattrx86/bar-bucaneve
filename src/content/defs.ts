@@ -54,8 +54,17 @@ export const WEAPONS: Record<string, WeaponDef> = {
   mitragliatrice: { id: 'mitragliatrice', nome: 'MITRAGLIATRICE', danno: 8, cadenza: 0.07, velocita: 520, munizioni: 200, colpiPerSparo: 1, dispersione: 3, gittata: 440, colore: 0xffe066 },
   fucile: { id: 'fucile', nome: 'FUCILE A POMPA', danno: 14, cadenza: 0.55, velocita: 380, munizioni: 30, colpiPerSparo: 4, dispersione: 11, gittata: 160, colore: 0xffd0a0 },
   lanciarazzi: { id: 'lanciarazzi', nome: 'LANCIARAZZI', danno: 55, cadenza: 0.75, velocita: 300, munizioni: 20, colpiPerSparo: 1, dispersione: 0, gittata: 460, colore: 0xff8040, esplosivo: 42 },
-  fiamma: { id: 'fiamma', nome: 'LANCIAFIAMME', danno: 5, cadenza: 0.045, velocita: 230, munizioni: 240, colpiPerSparo: 1, dispersione: 7, gittata: 110, colore: 0xff9030, perforante: true },
 };
+
+/** Arma disegnata che si sovrappone alla mano dell'eroe (la posa disegnata ha sempre la pistola).
+ *  Frazioni 0-1 del disegno, con la canna rivolta a destra: `gx,gy` = dove si impugna, `mx,my` = punta della canna.
+ *  `pistola` = quanto, in px di gioco, la punta della pistola disegnata sta davanti all'impugnatura. */
+export interface ArmaMano { fx: string; gx: number; gy: number; mx: number; my: number; pistola: number }
+export const ARMA_MANO: Record<string, ArmaMano> = {
+  mitragliatrice: { fx: 'mitra_mano', gx: 0.2, gy: 0.65, mx: 1.0, my: 0.35, pistola: 9 },
+};
+/** Pose in cui la mano regge l'arma in avanti (nelle altre - colpito, mischia, bomba - si vede solo l'eroe). */
+export const POSE_ARMA = /^(idle|run_|shoot|shoot_up|crouch|crouch_shoot|jump|jump_shoot)/;
 
 // ---------------------------------------------------------------------------
 // NEMICI: due comportamenti, più fogli grafici ciascuno (scelti a caso)
@@ -135,7 +144,7 @@ export const PICKUPS: { x: number; arma: string }[] = [
   { x: 1006, arma: 'fucile' },
   { x: 1520, arma: 'lanciarazzi' },
   { x: 2056, arma: 'mitragliatrice' },
-  { x: 2325, arma: 'fiamma' },
+  { x: 2325, arma: 'fucile' },
 ];
 
 // ---------------------------------------------------------------------------
@@ -144,7 +153,8 @@ export const PICKUPS: { x: number; arma: string }[] = [
 // Strada lunga ~3100 px (4 facciate + il bar a x~2390). Posizioni riscalate dopo i fondali del 15/11.
 // ---------------------------------------------------------------------------
 export type Rottura = 'legno' | 'vetro' | 'esplode';
-export interface PropPos { nome: string; x: number; rompe?: Rottura; vita?: number; dy?: number }
+/** `z` = profondita' (30 di serie; 24 = sfondo, dietro a tutto quello che si muove). Senza `rompe` e' solo scenografia. */
+export interface PropPos { nome: string; x: number; rompe?: Rottura; vita?: number; dy?: number; z?: number }
 // Gli oggetti puramente decorativi restano tolti: erano sparsi a caso e sporcavano la strada.
 // Questi pochi invece servono al gioco e stanno dove serve: una bombola o un fusto appena prima
 // di ogni ondata grossa, da far saltare quando i nemici ci passano accanto (l'esplosione fa 80
@@ -155,15 +165,31 @@ export interface PropPos { nome: string; x: number; rompe?: Rottura; vita?: numb
 // In cantina non ce ne sono: durante lo scontro con Ettore farebbero da scudo ai
 // suoi colpi e nasconderebbero i pallettoni.
 export const PROPS_STRADA: PropPos[] = [
+  // --- oggetti che si rompono sparando ---
   { nome: 'bidone_latte', x: 300, rompe: 'legno', vita: 20 },
+  { nome: 's_pila_casse', x: 420, rompe: 'legno', vita: 24 },
   { nome: 'bombole', x: 600, rompe: 'esplode', vita: 24 },
   { nome: 'cassonetto', x: 845, rompe: 'legno', vita: 26 },
   { nome: 'fusto_rosso', x: 1090, rompe: 'esplode', vita: 24 },
+  { nome: 's_distributore', x: 1190, rompe: 'legno', vita: 34 },
   { nome: 'bidone_latte', x: 1360, rompe: 'legno', vita: 20 },
+  { nome: 's_bagno', x: 1575, rompe: 'legno', vita: 40 },
   { nome: 'bombole', x: 1630, rompe: 'esplode', vita: 24 },
+  { nome: 's_pallet', x: 1695, rompe: 'legno', vita: 24 },
   { nome: 'cassonetto', x: 1895, rompe: 'legno', vita: 26 },
   { nome: 'fusto_rosso', x: 2140, rompe: 'esplode', vita: 24 },
+  { nome: 's_quadro', x: 2190, rompe: 'esplode', vita: 28 },
   { nome: 'bombole', x: 2380, rompe: 'esplode', vita: 24 },
+  // --- scenografia in secondo piano: non si rompe, non ferma i proiettili, non intralcia ---
+  { nome: 's_barriera', x: 170, z: 24 },
+  { nome: 's_faro', x: 238, z: 24 },
+  { nome: 's_fermata', x: 710, z: 24 },
+  { nome: 's_auto', x: 935, z: 24 },
+  { nome: 's_telefono', x: 1275, z: 24 },
+  { nome: 's_recinzione', x: 1450, z: 24 },
+  { nome: 's_furgone', x: 1790, z: 24 },
+  { nome: 's_muro', x: 1975, z: 24 },
+  { nome: 's_guardrail', x: 2250, z: 24 },
 ];
 export const PROPS_CANTINA: PropPos[] = [];
 

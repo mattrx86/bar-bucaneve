@@ -52,6 +52,49 @@ for k, riga in enumerate(NOMI):
         m = sm[..., 3] > 0; ys, xs = np.where(m)
         sm = sm[ys.min():ys.max() + 1, xs.min():xs.max() + 1]
         props[nome] = dict(data=b64png(Image.fromarray(sm)), w=round(sm.shape[1] / d, 1), h=round(sm.shape[0] / d, 1), d=d)
+# ---------------------------------------------------------------------------
+# Oggetti di strada urbana (foglio con sfondo marrone scuro opaco): sfondo tolto per colore,
+# partendo dai bordi, quindi i buchi interni (rete della recinzione, finestrini) restano disegnati.
+# (nome, x0, x1, y0, y1 del riquadro nel foglio, altezza in gioco in px). Nessun fattore SCALA_OGGETTI:
+# le altezze sono gia' pensate rispetto all'eroe alto 54 px.
+# ---------------------------------------------------------------------------
+from scipy import ndimage as _nd
+STRADA = os.path.join(os.path.dirname(SHEET), 'Sprite di strada urbana rétro.png')
+PILA = os.path.join(os.path.dirname(SHEET), 'Pila di casse di legno in pixel art.png')
+OGG_STRADA = [
+    ('s_barriera', 10, 330, 30, 330, 30), ('s_guardrail', 340, 672, 30, 330, 28), ('s_muro', 680, 990, 30, 330, 42),
+    ('s_cassonetto', 995, 1294, 30, 330, 46), ('s_bagno', 1295, 1532, 30, 330, 64),
+    ('s_fermata', 12, 478, 345, 672, 66), ('s_distributore', 492, 684, 345, 672, 54), ('s_telefono', 698, 852, 345, 672, 50),
+    ('s_quadro', 878, 1072, 345, 672, 40), ('s_recinzione', 1096, 1526, 345, 672, 46),
+    ('s_auto', 12, 410, 690, 975, 44), ('s_pallet', 1145, 1526, 690, 975, 46), ('s_furgone', 428, 864, 690, 975, 56), ('s_faro', 878, 1128, 690, 975, 62),
+]
+def sfondo_scuro(rgba):
+    rgb = rgba[..., :3].astype(int); r, g, b = rgb[..., 0], rgb[..., 1], rgb[..., 2]
+    bg = (r >= 30) & (r <= 92) & (g >= 24) & (g <= 78) & (b >= 18) & (b <= 68) & ((r - b) >= 8) & ((r - b) <= 32) & ((r - g) >= 4) & ((r - g) <= 20)
+    lab, n = _nd.label(bg, structure=np.ones((3, 3)))
+    bordo = set(np.unique(np.concatenate([lab[0], lab[-1], lab[:, 0], lab[:, -1]]))) - {0}
+    ogg = ~np.isin(lab, list(bordo))
+    ogg = _nd.binary_opening(ogg, iterations=1)
+    out = rgba.copy(); out[..., 3] = np.where(ogg, 255, 0); out[~ogg, :3] = 0
+    return out
+def ritaglia_strada(nome, img, h_gioco):
+    img = img.copy(); img[img[..., 3] < 128, 3] = 0
+    lab, n = _nd.label(img[..., 3] > 0, structure=np.ones((3, 3)))
+    if n > 1:   # via i pulviscoli staccati: resta solo il pezzo grande (e cio' che gli sta vicino)
+        sz = _nd.sum(img[..., 3] > 0, lab, range(1, n + 1)); keep = np.isin(lab, [i + 1 for i, v in enumerate(sz) if v >= 0.01 * sz.max()]); img[~keep] = 0
+    ys, xs = np.where(img[..., 3] > 0); img = img[ys.min():ys.max() + 1, xs.min():xs.max() + 1]
+    d = 1.5
+    sm = ink(to_small(img, h_gioco * d / img.shape[0]))
+    m = sm[..., 3] > 0; ys, xs = np.where(m); sm = sm[ys.min():ys.max() + 1, xs.min():xs.max() + 1]
+    props[nome] = dict(data=b64png(Image.fromarray(sm)), w=round(sm.shape[1] / d, 1), h=round(sm.shape[0] / d, 1), d=d)
+if os.path.isfile(STRADA):
+    foglio = np.array(Image.open(STRADA).convert('RGBA'))
+    for nome, x0, x1, y0, y1, h in OGG_STRADA:
+        ritaglia_strada(nome, sfondo_scuro(foglio[y0:y1, x0:x1].copy()), h)
+if os.path.isfile(PILA):
+    pa = np.array(Image.open(PILA).convert('RGBA'))
+    if (pa[..., 3] < 128).mean() < 0.05: pa = sfondo_scuro(pa)
+    ritaglia_strada('s_pila_casse', pa, 46)
 # anteprima
 ims = [Image.open(io.BytesIO(base64.b64decode(p['data'].split(',')[1]))).convert('RGBA') for p in props.values()]
 W = sum(i.width + 8 for i in ims); H = max(i.height for i in ims)
@@ -100,11 +143,11 @@ for nuovo, (src, pitch, vel, eff) in DERIVATE.items():
 # ---------------------------------------------------------------------------
 RIGHE_ARMI = [(16, 177), (196, 380), (419, 507), (553, 613), (625, 814), (852, 975)]
 ELEMENTI = [
-    ('cassa_fucile', 0, 46, 279, 30, 1), ('cassa_fiamma', 0, 350, 587, 30, 1), ('cassa_bombe', 0, 655, 888, 30, 1),
+    ('cassa_fucile', 0, 46, 279, 30, 1), ('cassa_bombe', 0, 655, 888, 30, 1),
     ('cassa_lanciarazzi', 0, 951, 1187, 30, 1), ('cassa_mitragliatrice', 0, 1258, 1492, 30, 1),
     ('apre_1', 1, 56, 243, 30, 1), ('apre_2', 1, 288, 512, 30, 1), ('apre_3', 1, 544, 731, 30, 1),
     ('apre_4', 1, 787, 981, 30, 1), ('apre_5', 1, 1044, 1227, 30, 1), ('apre_6', 1, 1297, 1487, 30, 1),
-    ('icona_mitragliatrice', 2, 37, 128, 12, 0), ('icona_pistola', 2, 160, 259, 13, 0), ('icona_fiamma', 2, 289, 401, 15, 0),
+    ('icona_mitragliatrice', 2, 37, 128, 12, 0), ('icona_pistola', 2, 160, 259, 13, 0), 
     ('icona_fucile', 2, 432, 557, 17, 0), ('icona_bomba', 2, 587, 683, 13, 0), ('icona_lanciarazzi', 2, 713, 839, 17, 0),
     ('icona_munizioni', 2, 871, 972, 14, 0), ('icona_cura', 2, 1003, 1099, 13, 0),
     ('granata', 2, 1152, 1230, 8, 1), ('razzo', 2, 1266, 1379, 13, 0), ('proiettile', 2, 1435, 1500, 7, 0),
@@ -139,6 +182,22 @@ if ARMI:
     pv = Image.new('RGBA', (W, H), (70, 78, 92, 255)); x = 0
     for im in ims: pv.alpha_composite(im, (x, H - im.height)); x += im.width + 6
     pv.save(PREV.replace('.png', '_armi.png'))
+
+# --- mitragliatrice da tenere in mano (grafica/personaggi): lunga 28 px di gioco, pixel netti ---
+_mg = [f for f in os.listdir(os.path.join(os.path.dirname(SHEET), '..', 'personaggi')) if f.lower().startswith('mitragliatrice')]
+if _mg:
+    _a = load_mask(os.path.join(os.path.dirname(SHEET), '..', 'personaggi', _mg[0]), 'alpha'); _m = _a[..., 3] > 128; _ys, _xs = np.where(_m)
+    _a = _a[_ys.min():_ys.max() + 1, _xs.min():_xs.max() + 1].copy(); _a[_a[..., 3] < 128, 3] = 0
+    _sm = to_small(_a, 28 * 1.5 / _a.shape[1])
+    fx['mitra_mano'] = dict(data=b64png(Image.fromarray(_sm)), w=round(_sm.shape[1] / 1.5, 1), h=round(_sm.shape[0] / 1.5, 1), d=1.5)
+
+# --- bottiglia "standard" (verde originale) lanciata dagli ubriachi della strada ---
+_bt = os.path.join(os.path.dirname(SHEET), 'Bottiglia Verde Pixel Art.png')
+if os.path.isfile(_bt):
+    _b = load_mask(_bt, 'alpha'); _m = _b[..., 3] > 0; _ys, _xs = np.where(_m)
+    _b = _b[_ys.min():_ys.max() + 1, _xs.min():_xs.max() + 1]
+    _sm = to_small(_b, 16 * 1.5 / _b.shape[0])          # alta 16 px di gioco, pixel netti (nearest)
+    fx['bottiglia_strada'] = dict(data=b64png(Image.fromarray(_sm)), w=round(_sm.shape[1] / 1.5, 1), h=round(_sm.shape[0] / 1.5, 1), d=1.5)
 
 # ---------------------------------------------------------------------------
 # Musica: i brani veri, interi, solo ricompressi in mp3 (stereo 80 kbit) e portati a un livello

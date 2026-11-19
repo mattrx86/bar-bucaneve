@@ -13,7 +13,10 @@ export function unlockAudio(): void {
       ctx = new (window.AudioContext || (window as any).webkitAudioContext)();
       master = ctx.createGain();
       master.gain.value = muted ? 0 : 0.9;
-      master.connect(ctx.destination);
+      // Limitatore morbido in uscita: le raffiche e le esplosioni sovrapposte non vanno mai in clipping
+      const comp = ctx.createDynamicsCompressor();
+      comp.threshold.value = -14; comp.knee.value = 10; comp.ratio.value = 6; comp.attack.value = 0.003; comp.release.value = 0.12;
+      master.connect(comp).connect(ctx.destination);
     }
     if (ctx.state === 'suspended') void ctx.resume();
   } catch { ctx = null; }
@@ -46,17 +49,169 @@ function noise(dur: number, vol: number, filterHz: number): void {
   src.start(t);
 }
 
-export type Sfx = 'pistola' | 'mitra' | 'fucile' | 'razzo' | 'fiamma' | 'salto' | 'atterra'
+export type Sfx = 'pistola' | 'mitra' | 'fucile' | 'razzo' | 'doppietta' | 'doppiettaVentaglio' | 'motoLancio' | 'motoImpatto' | 'salto' | 'atterra'
   | 'colpito' | 'morte' | 'nemicoColpito' | 'nemicoMorto' | 'raccolta' | 'bomba' | 'boom'
   | 'melee' | 'bossUrlo' | 'bossColpito' | 'bossMorto' | 'menu' | 'conferma' | 'allarme';
 
-export function sfx(name: Sfx): void {
+// ---------------------------------------------------------------------------
+// Sintesi a strati. Ogni suono e' la somma di piccoli "strati" (scatto secco, corpo, colpo grave,
+// coda) con inviluppo proprio, ritardo, filtro e posizione stereo. Nessun file esterno: tutto e'
+// generato qui, quindi non c'e' latenza di caricamento e non ci sono diritti da attribuire.
+// ---------------------------------------------------------------------------
+interface Strato {
+  /** 'n' = rumore, altrimenti forma d'onda dell'oscillatore */
+  t: 'n' | OscillatorType;
+  dur: number; vol: number;
+  /** frequenza iniziale e finale (oscillatori) oppure del filtro (rumore) */
+  f0: number; f1?: number;
+  filtro?: BiquadFilterType; q?: number;
+  /** ritardo di partenza in secondi */
+  rit?: number;
+}
+let attive = 0;               // strati sonori in riproduzione: sopra il limite si scartano quelli "di coda"
+let noiseBuf: AudioBuffer | null = null;
+function bufferRumore(): AudioBuffer {
+  if (!ctx) throw new Error('no audio');
+  if (!noiseBuf) {
+    noiseBuf = ctx.createBuffer(1, ctx.sampleRate, ctx.sampleRate);
+    const d = noiseBuf.getChannelData(0);
+    for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+  }
+  return noiseBuf;
+}
+function strato(l: Strato, k: number, pan: number, pitch: number): void {
+  if (!ctx || !master || muted) return;
+  const t = ctx.currentTime + (l.rit ?? 0);
+  const gain = ctx.createGain();
+  const vol = l.vol * k;
+  gain.gain.setValueAtTime(0.0001, t);
+  gain.gain.linearRampToValueAtTime(vol, t + 0.002);          // attacco brevissimo: niente "click"
+  gain.gain.exponentialRampToValueAtTime(0.0008, t + l.dur);
+  let nodo: AudioNode;
+  let src: AudioScheduledSourceNode;
+  if (l.t === 'n') {
+    const b = ctx.createBufferSource(); b.buffer = bufferRumore(); b.loop = true;
+    const f = ctx.createBiquadFilter(); f.type = l.filtro ?? 'lowpass'; f.Q.value = l.q ?? 0.7;
+    f.frequency.setValueAtTime(l.f0 * pitch, t);
+    if (l.f1) f.frequency.exponentialRampToValueAtTime(Math.max(30, l.f1 * pitch), t + l.dur);
+    b.connect(f); nodo = f; src = b; b.start(t, Math.random() * 0.8);
+  } else {
+    const o = ctx.createOscillator(); o.type = l.t;
+    o.frequency.setValueAtTime(l.f0 * pitch, t);
+    if (l.f1) o.frequency.exponentialRampToValueAtTime(Math.max(20, l.f1 * pitch), t + l.dur);
+    nodo = o; src = o; o.start(t);
+  }
+  nodo.connect(gain);
+  if (pan !== 0 && ctx.createStereoPanner) { const p = ctx.createStereoPanner(); p.pan.value = Math.max(-1, Math.min(1, pan)); gain.connect(p).connect(master); }
+  else gain.connect(master);
+  attive++;
+  src.onended = () => { attive--; };
+  src.stop(t + l.dur + 0.02);
+}
+
+const RICETTE: Partial<Record<Sfx, Strato[]>> = {
+  // Pistola: scatto secco e brillante, corpo corto, piccolo colpo grave. Il suono piu' leggero.
+  pistola: [
+    { t: 'n', dur: 0.05, vol: 0.10, f0: 3200, filtro: 'highpass' },
+    { t: 'square', dur: 0.07, vol: 0.06, f0: 1100, f1: 240 },
+    { t: 'sine', dur: 0.09, vol: 0.11, f0: 190, f1: 70 },
+  ],
+  // Mitragliatrice: breve, meccanica, stretta. Uno scatto metallico + un "tac" di otturatore.
+  mitra: [
+    { t: 'n', dur: 0.03, vol: 0.075, f0: 2600, filtro: 'bandpass', q: 1.2 },
+    { t: 'sawtooth', dur: 0.045, vol: 0.045, f0: 330, f1: 120 },
+    { t: 'square', dur: 0.012, vol: 0.03, f0: 2100, rit: 0.022 },
+  ],
+  // Fucile a pompa: colpo pesante, esplosivo, con coda e rumore della pompa che riarma.
+  fucile: [
+    { t: 'n', dur: 0.06, vol: 0.13, f0: 2200, filtro: 'highpass' },
+    { t: 'n', dur: 0.24, vol: 0.20, f0: 2600, f1: 350, filtro: 'lowpass' },
+    { t: 'sine', dur: 0.30, vol: 0.20, f0: 120, f1: 36 },
+    { t: 'sawtooth', dur: 0.14, vol: 0.07, f0: 260, f1: 70 },
+    { t: 'n', dur: 0.4, vol: 0.05, f0: 700, f1: 200, filtro: 'lowpass', rit: 0.08 },
+    { t: 'square', dur: 0.03, vol: 0.035, f0: 1500, f1: 700, rit: 0.27 },
+    { t: 'square', dur: 0.035, vol: 0.04, f0: 900, f1: 420, rit: 0.34 },
+  ],
+  // Lanciarazzi: lancio profondo (sbuffo che sale) piu' un colpo sordo.
+  razzo: [
+    { t: 'n', dur: 0.5, vol: 0.12, f0: 500, f1: 2600, filtro: 'bandpass', q: 0.9 },
+    { t: 'sine', dur: 0.32, vol: 0.17, f0: 100, f1: 38 },
+    { t: 'sawtooth', dur: 0.4, vol: 0.06, f0: 150, f1: 55 },
+    { t: 'n', dur: 0.05, vol: 0.09, f0: 1800, filtro: 'highpass' },
+  ],
+  // Doppietta di Ettore: DUE canne in rapida successione (0 e 0,10 s), molto piu' grave e lunga
+  // del fucile del giocatore, poi lo scatto di apertura delle canne. Non assomiglia a nessun'altra arma.
+  doppietta: [
+    { t: 'n', dur: 0.05, vol: 0.12, f0: 1800, filtro: 'highpass' },
+    { t: 'n', dur: 0.32, vol: 0.18, f0: 1500, f1: 200, filtro: 'lowpass' },
+    { t: 'sine', dur: 0.40, vol: 0.22, f0: 82, f1: 28 },
+    { t: 'sawtooth', dur: 0.2, vol: 0.07, f0: 180, f1: 50 },
+    { t: 'n', dur: 0.05, vol: 0.12, f0: 1800, filtro: 'highpass', rit: 0.1 },
+    { t: 'n', dur: 0.36, vol: 0.18, f0: 1300, f1: 180, filtro: 'lowpass', rit: 0.1 },
+    { t: 'sine', dur: 0.44, vol: 0.22, f0: 70, f1: 25, rit: 0.1 },
+    { t: 'n', dur: 0.7, vol: 0.05, f0: 520, f1: 140, filtro: 'lowpass', rit: 0.14 },
+    { t: 'square', dur: 0.03, vol: 0.04, f0: 640, f1: 260, rit: 0.42 },
+    { t: 'square', dur: 0.03, vol: 0.04, f0: 900, f1: 380, rit: 0.48 },
+  ],
+  // Ventaglio: la stessa doppietta, ma con un fischio di aria spostata in piu' che annuncia il ventaglio largo.
+  doppiettaVentaglio: [
+    { t: 'n', dur: 0.05, vol: 0.12, f0: 1800, filtro: 'highpass' },
+    { t: 'n', dur: 0.36, vol: 0.19, f0: 1700, f1: 180, filtro: 'lowpass' },
+    { t: 'sine', dur: 0.46, vol: 0.23, f0: 76, f1: 26 },
+    { t: 'sawtooth', dur: 0.25, vol: 0.08, f0: 200, f1: 45 },
+    { t: 'n', dur: 0.06, vol: 0.12, f0: 1800, filtro: 'highpass', rit: 0.1 },
+    { t: 'n', dur: 0.4, vol: 0.19, f0: 1400, f1: 160, filtro: 'lowpass', rit: 0.1 },
+    { t: 'sine', dur: 0.5, vol: 0.23, f0: 64, f1: 24, rit: 0.1 },
+    { t: 'n', dur: 0.5, vol: 0.07, f0: 600, f1: 3000, filtro: 'bandpass', q: 1.5, rit: 0.12 },
+    { t: 'n', dur: 0.8, vol: 0.05, f0: 480, f1: 120, filtro: 'lowpass', rit: 0.16 },
+  ],
+  // Moto lanciata: sforzo grave + rombo di motore che sale + sibilo in volo.
+  motoLancio: [
+    { t: 'sawtooth', dur: 0.5, vol: 0.10, f0: 70, f1: 210 },
+    { t: 'square', dur: 0.5, vol: 0.04, f0: 140, f1: 420, rit: 0.02 },
+    { t: 'n', dur: 0.7, vol: 0.10, f0: 300, f1: 2200, filtro: 'bandpass', q: 0.8, rit: 0.05 },
+    { t: 'sine', dur: 0.25, vol: 0.14, f0: 90, f1: 40 },
+  ],
+  // Moto che si schianta: botto, lamiera, coda di rottami.
+  motoImpatto: [
+    { t: 'sine', dur: 0.7, vol: 0.26, f0: 80, f1: 26 },
+    { t: 'n', dur: 0.5, vol: 0.22, f0: 1600, f1: 160, filtro: 'lowpass' },
+    { t: 'n', dur: 0.25, vol: 0.12, f0: 1400, filtro: 'bandpass', q: 3, rit: 0.03 },
+    { t: 'square', dur: 0.2, vol: 0.05, f0: 520, f1: 190, rit: 0.04 },
+    { t: 'square', dur: 0.14, vol: 0.04, f0: 760, f1: 300, rit: 0.13 },
+    { t: 'n', dur: 0.9, vol: 0.07, f0: 420, f1: 110, filtro: 'lowpass', rit: 0.1 },
+  ],
+  // Esplosione: sub, rombo, crepitio e coda lunga.
+  boom: [
+    { t: 'sine', dur: 0.7, vol: 0.22, f0: 78, f1: 26 },
+    { t: 'n', dur: 0.55, vol: 0.19, f0: 1500, f1: 160, filtro: 'lowpass' },
+    { t: 'n', dur: 0.18, vol: 0.09, f0: 2800, filtro: 'highpass', rit: 0.03 },
+    { t: 'n', dur: 0.9, vol: 0.06, f0: 360, f1: 100, filtro: 'lowpass', rit: 0.1 },
+  ],
+};
+
+/** Minimo di secondi tra due riproduzioni dello stesso suono (anti-mitragliamento audio). */
+const PAUSA_MIN: Partial<Record<Sfx, number>> = { pistola: 0.05, mitra: 0.045, fucile: 0.1, razzo: 0.1, doppietta: 0.25, doppiettaVentaglio: 0.25, boom: 0.06, nemicoColpito: 0.04, bossColpito: 0.05 };
+const ultimoSfx: Partial<Record<Sfx, number>> = {};
+/** Suoni "di coda" e non essenziali che si scartano se ci sono gia' troppi strati in corso. */
+const ESSENZIALI = new Set<Sfx>(['pistola', 'mitra', 'fucile', 'razzo', 'doppietta', 'doppiettaVentaglio', 'motoLancio', 'motoImpatto', 'colpito', 'morte', 'bossUrlo']);
+
+/** `k` = volume relativo, `pan` = posizione stereo da -1 (sinistra) a 1 (destra). */
+export function sfx(name: Sfx, k = 1, pan = 0): void {
+  if (!ctx || !master || muted) return;
+  const ora = ctx.currentTime;
+  const minimo = PAUSA_MIN[name] ?? 0;
+  if (minimo && ultimoSfx[name] !== undefined && ora - ultimoSfx[name]! < minimo) return;
+  ultimoSfx[name] = ora;
+  if (attive > 60 && !ESSENZIALI.has(name)) return;
+  const ric = RICETTE[name];
+  if (ric) {
+    // piccola variazione di intonazione a ogni colpo: le raffiche non suonano come un campione ripetuto
+    const pitch = 1 + (Math.random() - 0.5) * (name === 'mitra' ? 0.12 : 0.06);
+    for (const l of ric) strato(l, k, pan, pitch);
+    return;
+  }
   switch (name) {
-    case 'pistola': tone(620, 0.09, 'square', 0.07, 180); noise(0.06, 0.06, 2600); break;
-    case 'mitra': tone(420, 0.055, 'square', 0.055, 150); noise(0.04, 0.05, 2200); break;
-    case 'fucile': noise(0.16, 0.14, 1500); tone(180, 0.16, 'sawtooth', 0.08, 50); break;
-    case 'razzo': noise(0.3, 0.1, 900); tone(140, 0.3, 'sawtooth', 0.09, 40); break;
-    case 'fiamma': noise(0.09, 0.045, 700); break;
     case 'salto': tone(300, 0.13, 'square', 0.05, 640); break;
     case 'atterra': noise(0.07, 0.05, 500); break;
     case 'colpito': tone(240, 0.26, 'square', 0.1, 70); noise(0.1, 0.08, 1200); break;
@@ -65,7 +220,6 @@ export function sfx(name: Sfx): void {
     case 'nemicoMorto': tone(420, 0.22, 'square', 0.07, 120); noise(0.12, 0.06, 1400); break;
     case 'raccolta': tone(660, 0.09, 'square', 0.06, 990); tone(990, 0.12, 'square', 0.05, 1320); break;
     case 'bomba': tone(260, 0.12, 'triangle', 0.05, 520); break;
-    case 'boom': noise(0.45, 0.17, 700); tone(90, 0.45, 'sawtooth', 0.12, 30); break;
     case 'melee': noise(0.08, 0.09, 2400); tone(200, 0.1, 'square', 0.06, 90); break;
     case 'bossUrlo': tone(150, 0.5, 'sawtooth', 0.12, 95); break;
     case 'bossColpito': noise(0.06, 0.07, 900); break;

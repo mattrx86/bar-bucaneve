@@ -1,4 +1,4 @@
-# Bar Bucaneve - prototipo 1.1
+# Bar Bucaneve - prototipo 1.2
 
 Aprite `bar-bucaneve.html` con Chrome, Edge o Firefox (doppio clic). Non serve installare nulla, non serve internet.
 
@@ -92,6 +92,18 @@ Su un computer con schermo touch il pannello compare alla prima ditata e sparisc
 ## Novità della 0.8
 - Musica della strada: il nuovo brano strumentale, reso suoneria polifonica 8 bit.
 - Ogni posa e ogni oggetto ritagliati e puliti sono in `estratti/`; per correggerne uno basta metterlo in `grafica/ritocchi/` (vedi `estratti/LEGGIMI.md`).
+
+## Novità 1.2
+- **Lanciafiamme tolto** da armi, casse, icone, suoni e logica (la cassa a x=2325 ora contiene il fucile a pompa).
+- **Punto di sparo corretto**: in corsa i colpi nascevano all'altezza della testa. Il difetto era doppio: la 1.0 forzava la quota della posa di tiro, e la misura della canna nei fotogrammi di corsa trovava il naso (che sporge più della pistola, tenuta sotto il mento). Ora la misura in corsa guarda sotto il mento e `Player.bocca()` usa la canna misurata sul fotogramma mostrato. Verificato su 7 eroi x 10 pose x 2 versi (`tests/arma_mano.py`).
+- **Mitragliatrice in mano** (`grafica/personaggi/Mitragliatrice...png`): sovrapposta alla mano, segue posa, verso e (in alto) rotazione; i colpi escono dalla sua canna. Ancoraggio in `ARMA_MANO` (`src/content/defs.ts`). Fucile e lanciarazzi non hanno ancora il disegno in mano (vedi la richiesta a ChatGPT nel rapporto).
+- **Colori dei proiettili per personaggio**: mappa unica in `src/content/colori.ts` (Vero viola, Michela rosa, Roberto azzurro, Marco verde, Daniele arancione, Paolo rosso, Mattia invariato). Al caricamento si crea una copia ricolorata di proiettile, razzo, granata e lampo di bocca: cambia solo la tinta dei pixel colorati, contorni, riflessi e grigi restano. Verificato su tutte le armi (`tests/colori.py`).
+- **Suoni delle armi riscritti** (`src/core/audio.ts`): ogni arma è un insieme di strati (scatto, corpo, colpo grave, coda) generati dal codice, con piccola variazione d'intonazione a ogni colpo, posizione stereo secondo la posizione sullo schermo, limitatore in uscita, pausa minima per suono e tetto agli strati contemporanei. Nessun file audio esterno, quindi nessuna licenza da attribuire.
+- **Doppietta di Ettore**: suono nuovo a due canne (due botti a 0,10 s, molto più grave del fucile del giocatore) con scatto di apertura; la prima scarica di una serie è piena, le successive al 75%. Il ventaglio ha una variante con fischio d'aria.
+- **Ettore** cammina al doppio della velocità (92 px/s, animazione al doppio); i tempi di preavviso degli attacchi non sono cambiati.
+- **Moto CRE**: appena Ettore perde la prima delle tre barre di vita (66,7%) afferra la moto e la scaglia (foglio di 14 fotogrammi, i primi 11 usati in ordine). Parte una volta sola (flag impostato subito, quindi anche con danni enormi in un colpo), preavviso di circa 1,6 s con un mirino a terra, traiettoria ad arco, 32 di danno in volo oppure allo schianto, esplosione, e poi riprende il comportamento normale. Le fasi 2 e 3 aspettano la fine dell'evento. Prova: `tests/ettore_moto.py`.
+- **Bottiglia** verde originale (`grafica/oggetti/Bottiglia Verde Pixel Art.png`) per gli ubriachi della strada, con area di impatto di 9 px.
+- **Strada**: 14 oggetti nuovi (`Sprite di strada urbana rétro.png`, sfondo tolto per colore) e la pila di casse: 5 si rompono sparando (pila di casse, distributore, bagno chimico, bancale, quadro elettrico che esplode) e 9 sono scenografia di sfondo che non intralcia né ferma i colpi. Posizioni in `PROPS_STRADA`.
 
 ## Novità della 1.1
 - Musica vera (i vostri mp3 interi, non più la suoneria a onde quadre), a volume basso rispetto a voci ed effetti.

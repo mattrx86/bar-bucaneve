@@ -82,7 +82,7 @@ export class GameScene extends Phaser.Scene implements World {
   };
   diff!: DiffDef;
   private congelato = 0;
-  private stopCd = 0; // pausa minima tra due micro-pause piccole (raffiche di mitra / lanciafiamme)
+  private stopCd = 0; // pausa minima tra due micro-pause piccole (raffiche di mitra)
   private combo = 0; private comboT = 0;
   private colpitoNelBoss = false;
   private props: Prop[] = [];
@@ -122,7 +122,7 @@ export class GameScene extends Phaser.Scene implements World {
 
     for (const pp of this.fase === 'strada' ? PROPS_STRADA : PROPS_CANTINA) {
       const d = PROPS[pp.nome]; if (!d) continue;
-      const im = this.add.image(pp.x, GROUND_Y + 2 + (pp.dy ?? 0), `prop_${pp.nome}`).setOrigin(0.5, 1).setDepth(30).setScale(1 / d.d);
+      const im = this.add.image(pp.x, GROUND_Y + 2 + (pp.dy ?? 0), `prop_${pp.nome}`).setOrigin(0.5, 1).setDepth(pp.z ?? 30).setScale(1 / d.d);
       if (pp.rompe) this.props.push({ s: im, def: pp, vita: pp.vita ?? 20, rompe: pp.rompe });
     }
 
@@ -443,7 +443,9 @@ export class GameScene extends Phaser.Scene implements World {
       if (x < this.camX - 30 || x > this.camX + VIEW_W + 30) { b.morto = true; continue; }
       if (b.o.ostile) {
         const tratto2 = new Phaser.Geom.Line(b.px, b.py, x, y);
-        const p = this.giocatori.find((q) => !q.morto && Phaser.Geom.Intersects.LineToRectangle(tratto2, q.box()));
+        // la bottiglia disegnata e' grande (16 px): oltre al tratto percorso conta un quadrato di 9 px attorno al centro
+        const sq = b.o.disegno ? new Phaser.Geom.Rectangle(x - 4.5, y - 4.5, 9, 9) : null;
+        const p = this.giocatori.find((q) => !q.morto && (Phaser.Geom.Intersects.LineToRectangle(tratto2, q.box()) || (sq && Phaser.Geom.Intersects.RectangleToRectangle(sq, q.box()))));
         if (p) {
           p.danno(b.o.danno); b.morto = true;
           if (b.o.tex === 'bottiglia') this.cocci(x, y);
@@ -525,11 +527,11 @@ export class GameScene extends Phaser.Scene implements World {
   }
   private scintilla(x: number, y: number): void {
     if (FX.scintille_1) {
-      const s = img(this, x, y, Math.random() < 0.5 ? 'scintille_1' : 'scintille_2', 'flame', 0.6).setDepth(65).setAngle(Phaser.Math.Between(0, 359));
+      const s = img(this, x, y, Math.random() < 0.5 ? 'scintille_1' : 'scintille_2', 'scintilla', 0.6).setDepth(65).setAngle(Phaser.Math.Between(0, 359));
       this.tweens.add({ targets: s, alpha: 0, duration: 140, onComplete: () => s.destroy() });
       return;
     }
-    const s = this.add.image(x, y, 'flame').setTint(0xfff0a0).setScale(0.5).setDepth(65);
+    const s = this.add.image(x, y, 'scintilla').setTint(0xfff0a0).setScale(0.5).setDepth(65);
     this.tweens.add({ targets: s, alpha: 0, scale: 0.1, duration: 120, onComplete: () => s.destroy() });
   }
   /** Pezzi che volano via: usa i detriti disegnati, altrimenti quadratini del codice. */
@@ -601,7 +603,7 @@ export class GameScene extends Phaser.Scene implements World {
       if (g.vite <= 0) {
         // senza vite: resta fuori. Se c'e' ancora un compagno in gioco si va avanti in uno,
         // altrimenti parte il CONTINUE per tutti.
-        p.fuori = true; p.sprite.setVisible(false);
+        p.fuori = true; p.sprite.setVisible(false); p.nascondiArma();
         this.testo(p.x, GROUND_Y - 80, this.giocatori.length > 1 ? `${i + 1}P FUORI!` : 'FINITO!', '#ff8080');
         if (this.giocatori.every((q) => q.fuori)) this.apriContinua();
       } else {

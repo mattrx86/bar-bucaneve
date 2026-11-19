@@ -13,7 +13,7 @@ export function bakeFx(sc: Phaser.Scene): void {
   bake(sc, 'bullet', 7, 3, (g) => { g.fillStyle(0xffffff); g.fillRect(0, 0, 7, 3); g.fillStyle(0xffffa0); g.fillRect(4, 0, 3, 3); });
   bake(sc, 'pellet', 4, 4, (g) => { g.fillStyle(0x2a1a10); g.fillRect(0, 0, 4, 4); g.fillStyle(0xffffff); g.fillRect(1, 1, 2, 2); });
   bake(sc, 'rocket', 11, 5, (g) => { g.fillStyle(0x5a6050); g.fillRect(0, 1, 8, 3); g.fillStyle(0xd04020); g.fillRect(8, 0, 3, 5); g.fillStyle(0xffd040); g.fillRect(0, 2, 2, 1); });
-  bake(sc, 'flame', 9, 9, (g) => { g.fillStyle(0xffffff); g.fillCircle(4.5, 4.5, 4.5); });
+  bake(sc, 'scintilla', 9, 9, (g) => { g.fillStyle(0xffffff); g.fillCircle(4.5, 4.5, 4.5); });
   bake(sc, 'bomba', 7, 7, (g) => { g.fillStyle(0x1a1a20); g.fillCircle(3.5, 3.5, 3.5); g.fillStyle(0xffc040); g.fillRect(4, 0, 2, 2); });
   bake(sc, 'bottiglia', 5, 12, (g) => {
     g.fillStyle(0x1e3a18); g.fillRect(0, 4, 5, 8); g.fillRect(1, 0, 3, 5);
@@ -66,4 +66,54 @@ export function img(sc: Phaser.Scene, x: number, y: number, nome: string, ripieg
   return sc.add.image(x, y, t.key).setScale(t.s * scala);
 }
 /** Mappa texture "del codice" -> disegno vostro, per i proiettili. */
-export const PROIETTILI_DISEGNATI: Record<string, string> = { bullet: 'proiettile', rocket: 'razzo', bomba: 'granata', flame: 'lampo_2' };
+export const PROIETTILI_DISEGNATI: Record<string, string> = { bullet: 'proiettile', rocket: 'razzo', bomba: 'granata' };
+
+// ---------------------------------------------------------------------------
+// Colore dei proiettili per personaggio (mappa in src/content/colori.ts).
+// Per ogni eroe e per ogni disegno da colorare si crea UNA volta, all'avvio, una copia ricolorata:
+// cambia solo la tinta dei pixel colorati (saturi e luminosi); contorni scuri, riflessi bianchi,
+// grigi del metallo e luminosita' restano identici, quindi forma e ombreggiatura non cambiano.
+// ---------------------------------------------------------------------------
+import { COLORE_PROIETTILI, DISEGNI_COLORATI, ColoreProiettile } from '../content/colori';
+
+function rgb2hsv(r: number, g: number, b: number): [number, number, number] {
+  const mx = Math.max(r, g, b), mn = Math.min(r, g, b), d = mx - mn;
+  let h = 0;
+  if (d) h = mx === r ? ((g - b) / d) % 6 : mx === g ? (b - r) / d + 2 : (r - g) / d + 4;
+  return [(h * 60 + 360) % 360, mx ? d / mx : 0, mx / 255];
+}
+function hsv2rgb(h: number, s: number, v: number): [number, number, number] {
+  const c = v * s, x = c * (1 - Math.abs(((h / 60) % 2) - 1)), m = v - c;
+  const [r, g, b] = h < 60 ? [c, x, 0] : h < 120 ? [x, c, 0] : h < 180 ? [0, c, x] : h < 240 ? [0, x, c] : h < 300 ? [x, 0, c] : [c, 0, x];
+  return [Math.round((r + m) * 255), Math.round((g + m) * 255), Math.round((b + m) * 255)];
+}
+export function ricolora(data: Uint8ClampedArray, c: ColoreProiettile): void {
+  for (let i = 0; i < data.length; i += 4) {
+    if (data[i + 3] === 0) continue;
+    const [, s, v] = rgb2hsv(data[i], data[i + 1], data[i + 2]);
+    if (s < 0.3 || v < 0.3) continue;            // contorni, grigi e riflessi bianchi: intatti
+    const [r, g, b] = hsv2rgb(c.h, Math.min(1, s * (c.s ?? 1)), Math.min(1, v * (c.v ?? 1)));
+    data[i] = r; data[i + 1] = g; data[i + 2] = b;
+  }
+}
+/** Chiave della texture di un disegno nel colore dell'eroe (o quella originale se non ha un colore). */
+export function fxEroe(nome: string, eroe: string | undefined, ripiego: string): { key: string; s: number } {
+  if (eroe && COLORE_PROIETTILI[eroe]) {
+    const f = FX[nome];
+    if (f) return { key: `fx_${nome}__${eroe}`, s: 1 / f.d };
+  }
+  return fxTex(nome, ripiego);
+}
+export function creaColoriEroi(sc: Phaser.Scene): void {
+  for (const [eroe, col] of Object.entries(COLORE_PROIETTILI)) {
+    for (const nome of DISEGNI_COLORATI) {
+      const src = sc.textures.exists(`fx_${nome}`) ? sc.textures.get(`fx_${nome}`).getSourceImage() as HTMLImageElement : null;
+      if (!src) continue;
+      const cv = document.createElement('canvas'); cv.width = src.width; cv.height = src.height;
+      const cx = cv.getContext('2d')!; cx.drawImage(src, 0, 0);
+      const id = cx.getImageData(0, 0, cv.width, cv.height); ricolora(id.data, col); cx.putImageData(id, 0, 0);
+      const key = `fx_${nome}__${eroe}`;
+      if (!sc.textures.exists(key)) sc.textures.addCanvas(key, cv);
+    }
+  }
+}
