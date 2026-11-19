@@ -6,6 +6,7 @@ import { bakeFont } from '../core/font';
 import { loadSave } from '../core/save';
 import { setMuted } from '../core/audio';
 import { txt, zoomCamera } from '../core/ui';
+import { caricaChiesa } from './chiesa/ChiesaAmbiente';
 
 /** Carica tutti gli sprite e i fondali (incorporati nel file HTML). */
 export class BootScene extends Phaser.Scene {
@@ -23,6 +24,7 @@ export class BootScene extends Phaser.Scene {
     BG.cellar.parts.forEach((d, i) => this.load.image(`bg_cellar_${i}`, d));
     for (const [k, p] of Object.entries(PROPS)) this.load.image(`prop_${k}`, p.data);
     caricaFx(this);
+    caricaChiesa(this);   // HOLY SLUG: fondali della chiesa
   }
   create(): void {
     bakeFx(this);

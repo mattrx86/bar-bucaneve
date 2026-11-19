@@ -1,4 +1,4 @@
-# BUCA SLUG - prototipo 1.3
+# BUCA SLUG - prototipo 1.4
 
 Run'n'gun stile Metal Slug. Strada di Ponte Arche (gelatai e ubriachi) -> Giova davanti al Bar Bucaneve -> Ettore in cantina.
 
@@ -26,6 +26,29 @@ Scaricate `bar-bucaneve.html` e apritelo con doppio clic (Chrome, Edge o Firefox
 - `src/entities.ts`: giocatore, nemici, Giova, Ettore.
 - `src/scenes/`: Boot, Title, Select, Game (fasi strada e cantina), Result.
 - `richieste/`: **richieste di modifica degli amici** (istruzioni + materiali). Le eseguo solo quando me lo dite; vedi `richieste/LEGGIMI.md`.
+
+## Novità 1.4 — HOLY SLUG
+- **Nuovo livello: la chiesa gotica (HOLY SLUG)**, dopo la cantina. Battuto Ettore arriva il bonus di fine missione di sempre, poi si entra in chiesa con punti, vite e armi.
+  - **Ingresso**: controfacciata con il portale; il portone si apre sulla notte.
+  - **Navata**: 9 ondate di chierichetti (turibolo tirato teso: si salta o ci si abbassa) e suore (rosario lanciato ad arco, oppure carica a testa bassa). C'è un checkpoint a metà e ci sono 4 casse d'arma.
+  - **Parallasse**: la parete con le vetrate scorre a metà velocità dietro gli archi; panche e stendardi in primo piano.
+  - **Luci**: candele animate (4 fotogrammi sfasati), aloni che tremolano, raggi di luce dalle vetrate, pulviscolo.
+  - **Arena**: altare e grande rosone, con la luce colorata sul pavimento e la musica del boss finale.
+- **Boss finale: Griso e Don Antonio.**
+  - **Griso**: frusta col rosario da vicino, Bibbia lanciata ad arco (due di fila sotto metà vita).
+  - **Don Antonio** arriva quando Griso è a metà vita ("DOVE SEI GRISO?!") e combattono insieme. Attacchi: acqua santa a ventaglio, teglia di lasagne lanciata, teglia sbattuta a terra con due ondate rasoterra da saltare.
+  - Ogni attacco ha un preavviso. La barra del boss mostra la vita dei due insieme. Si vince quando sono a terra tutti e due.
+- **Materiale**: tutto il materiale è in `progetto-chiesa/`; `tools/build_chiesa.py` lo trasforma in `src/content/chiesa.ts`.
+  - Gli sprite sono ritagliati dai vostri fogli originali, senza ridisegnare i personaggi. Gli ambienti partono dai moduli SVG.
+  - I PNG esportati sono in `progetto-chiesa/export/`; l'elenco completo è in `progetto-chiesa/asset-manifest/ASSET_MANIFEST.md`.
+  - Il codice del livello sta in file a parte: `src/content/holy.ts`, `src/bossChiesa.ts`, `src/scenes/chiesa/ChiesaAmbiente.ts`.
+- **Logo BUCA SLUG** nella schermata del titolo (`grafica/titolo/logo.png`, generato da `tools/logo.py`). Le lettere sono disegnate da zero in stile arcade, non copiate da Metal Slug.
+- **Audio di Buca Slug**:
+  - la voce di Ettore sulla "dune buggy" ora parte quando afferra la moto, non più a metà vita;
+  - con Giovanni la musica della strada non si interrompe più e le voci della strada continuano anche davanti al bar;
+  - `sottofondo boss giova` suona sopra la musica, ogni 14 secondi, finché Giovanni è in piedi;
+  - la voce `Barista femmina` parte quando si arriva davanti al bar.
+- **Test**: `tests/chiesa.py` gioca la chiesa da capo a fondo; `tests/boss.py` ora verifica anche il passaggio dalla cantina alla chiesa.
 
 ## Novità 1.3
 - **Il gioco si chiama BUCA SLUG** (titolo, scheda del browser, documenti). Il file resta `bar-bucaneve.html` come il repository, così i vostri link non cambiano; "Bar Bucaneve" è il locale vero dove arriva Giova.

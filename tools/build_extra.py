@@ -213,6 +213,11 @@ _tt = os.path.join(os.path.dirname(SHEET), '..', 'titolo', 'schermata.png')
 if os.path.isfile(_tt):
     _t = Image.open(_tt).convert('RGB').resize((576, 324), Image.Resampling.BOX)
     fx['titolo'] = dict(data=b64png(_t.convert('RGBA')), w=384, h=216, d=1.5)
+# --- logo BUCA SLUG (grafica/titolo/logo.png, generato da tools/logo.py): largo 110 px di gioco, pixel netti ---
+_lg = os.path.join(os.path.dirname(SHEET), '..', 'titolo', 'logo.png')
+if os.path.exists(_lg):
+    _l = Image.open(_lg).convert('RGBA')
+    fx['logo'] = dict(data=b64png(_l), w=110, h=round(_l.height * 110 / _l.width, 1), d=_l.width / 110)
 
 # --- bottiglia "standard" (verde originale) lanciata dagli ubriachi della strada ---
 _bt = os.path.join(os.path.dirname(SHEET), 'Bottiglia Verde Pixel Art.png')

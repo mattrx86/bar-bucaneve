@@ -284,6 +284,30 @@ import { VOCI, MUSICA, VOCI_FASE, SFX } from '../content/extra';
 /** Stadio in corso: le voci messe in voci/<stadio>/ si sentono solo li' ('strada', 'bucaneve', 'ettore'). null = tutte. */
 let faseAudio: string | null = null;
 export function setFaseAudio(f: string | null): void { faseAudio = f; }
+/** Una voce di stadio `fv` si sente nello stadio in corso? Lo spiazzo del Bucaneve e' ancora la strada:
+ *  le voci della strada continuano anche quando c'e' Giovanni (non il contrario). */
+function valeInFase(fv: string | undefined): boolean {
+  if (!fv || !faseAudio || fv === faseAudio) return true;
+  return faseAudio === 'bucaneve' && fv === 'strada';
+}
+
+/** Sottofondo di uno stadio: un brano corto (es. "sottofondo boss giova") suonato SOPRA la musica,
+ *  una volta subito e poi ogni `ogni` secondi, finche' non si chiama sottofondo(null). */
+let sottTimer: ReturnType<typeof setInterval> | null = null;
+export function sottofondo(nome: string | null, ogni = 0, volume = 0.8): void {
+  if (sottTimer) { clearInterval(sottTimer); sottTimer = null; }
+  if (!nome || !ctx) return;
+  const suona = (): void => {
+    void decodificaMusica(nome).then((b) => {
+      if (!b || !ctx || !master || muted) return;
+      const src = ctx.createBufferSource(); src.buffer = b;
+      const g = ctx.createGain(); g.gain.value = VOL_MUSICA * 2.4 * volume;
+      src.connect(g).connect(master); src.start();
+    });
+  };
+  suona();
+  if (ogni > 0) sottTimer = setInterval(suona, ogni * 1000);
+}
 const buffers: Record<string, AudioBuffer | null> = {};
 let ultimaVoce: AudioBufferSourceNode | null = null;
 const ultimoUso: Record<string, number> = {};
@@ -306,8 +330,7 @@ export function preparaVoci(): void { preparaCampioni(); if (ctx) for (const n o
 /** Suona una voce. `pausa` = secondi minimi tra due usi della stessa voce. Una voce alla volta. */
 export function voce(nome: string, pausa = 0, volume = 1): void {
   if (!ctx || !master || muted) return;
-  const fv = VOCI_FASE[nome];
-  if (fv && faseAudio && fv !== faseAudio) return;   // voce di un altro stadio
+  if (!valeInFase(VOCI_FASE[nome])) return;   // voce di un altro stadio
   const now = ctx.currentTime;
   if (pausa && ultimoUso[nome] !== undefined && now - ultimoUso[nome] < pausa) return;
   ultimoUso[nome] = now;
@@ -395,7 +418,7 @@ export function parla(chi: string | string[], evento: string, prob = 1, pausa = 
   if (ctx.currentTime - ultimaFrase < 0.7) return false; // non accavallare le frasi
   for (const c of Array.isArray(chi) ? chi : [chi]) {
     const base = `${c}_${evento}`;
-    const scelte = Object.keys(VOCI).filter((k) => (k === base || new RegExp(`^${base}_\\d+$`).test(k)) && !(VOCI_FASE[k] && faseAudio && VOCI_FASE[k] !== faseAudio));
+    const scelte = Object.keys(VOCI).filter((k) => (k === base || new RegExp(`^${base}_\\d+$`).test(k)) && valeInFase(VOCI_FASE[k]));
     if (!scelte.length) continue;
     ultimaFrase = ctx.currentTime;
     voce(scelte[Math.floor(Math.random() * scelte.length)], pausa);

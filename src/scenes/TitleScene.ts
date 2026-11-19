@@ -32,12 +32,15 @@ export class TitleScene extends Phaser.Scene {
       this.add.rectangle(0, 0, VIEW_W, VIEW_H, 0x000000, 0.45).setOrigin(0);
     }
     // velo scuro dietro ai testi, cosi' si leggono sopra l'immagine
-    this.add.rectangle(0, 0, VIEW_W, 70, 0x000000, 0.35).setOrigin(0);
+    this.add.rectangle(0, 0, VIEW_W, 80, 0x000000, 0.35).setOrigin(0);
     this.add.rectangle(VIEW_W / 2, 98, 150, 40, 0x000000, 0.45);
     this.add.rectangle(0, VIEW_H - 26, VIEW_W, 26, 0x000000, 0.5).setOrigin(0);
 
-    const t = txt(this, VIEW_W / 2, 30, 'BUCA SLUG', 28, '#ffe066', 6).setOrigin(0.5);
-    txt(this, VIEW_W / 2, 56, 'LA RESA DEI CONTI A PONTE ARCHE', 9, '#ffffff', 3).setOrigin(0.5);
+    // logo BUCA SLUG (tools/logo.py); senza il file resta la scritta
+    const t = FX.logo
+      ? this.add.image(VIEW_W / 2, 36, 'fx_logo').setOrigin(0.5).setScale(1 / FX.logo.d)
+      : txt(this, VIEW_W / 2, 30, 'BUCA SLUG', 28, '#ffe066', 6).setOrigin(0.5);
+    txt(this, VIEW_W / 2, FX.logo ? 72 : 56, 'LA RESA DEI CONTI A PONTE ARCHE', 9, '#ffffff', 3).setOrigin(0.5);
     this.tweens.add({ targets: t, scaleX: t.scaleX * 1.04, scaleY: t.scaleY * 1.04, duration: 900, yoyo: true, repeat: -1 });
     // scelta 1 o 2 giocatori: su/giu e invio, oppure direttamente i tasti 1 e 2, oppure un tocco
     this.modo = loadSave().giocatori === 2 ? 2 : 1;

@@ -463,14 +463,21 @@ export class Enemy {
       // pallina di gelato tesa, ad altezza petto: si evita abbassandosi o saltando
       // (il riquadro accovacciato è alto 30 px e il bordo conta: a 30 px colpiva anche chi si abbassava)
       const y = this.y - 36;
-      this.w.sparaProiettile({ x: this.x + 12 * d, y, ang: this.guardaDx ? 0 : Math.PI, speed: 150, danno: this.def.danno, tex: 'pallina', ostile: true, gittata: 340 });
+      this.w.sparaProiettile({ x: this.x + 12 * d, y, ang: this.guardaDx ? 0 : Math.PI, speed: 150, danno: this.def.danno, tex: 'pallina', ostile: true, gittata: 340, disegno: this.disegnoProiettile() });
       sfx('bomba'); return;
     }
     // traiettoria ad arco che atterra vicino al giocatore: si evita saltando o spostandosi
     const T = this.alto ? 1.05 : 0.95, dxp = Phaser.Math.Clamp(p.x - x0, -230, 230);
     const vx = dxp / T, vy = (GROUND_Y - 6 - y0 - 0.5 * GRAVITY * 0.6 * T * T) / T;
-    this.w.sparaProiettile({ x: x0, y: y0, ang: Math.atan2(vy, vx), speed: Math.hypot(vx, vy), danno: this.def.danno, tex: 'bottiglia', disegno: 'bottiglia_strada', ostile: true, gittata: 900, arco: true });
+    const dis = this.disegnoProiettile();
+    this.w.sparaProiettile({ x: x0, y: y0, ang: Math.atan2(vy, vx), speed: Math.hypot(vx, vy), danno: this.def.danno, tex: dis ? 'pallina' : 'bottiglia', disegno: dis ?? 'bottiglia_strada', ostile: true, gittata: 900, arco: true });
     sfx('bomba');
+  }
+  /** HOLY SLUG: proiettile disegnato del nemico, nel colore del suo foglio (turibolo_rosso, rosario_blu...). */
+  private disegnoProiettile(): string | undefined {
+    const p = this.def.proiettile; if (!p) return undefined;
+    const col = this.sheet.split('_').pop();
+    return `${p}_${col}`;
   }
 
   distruggi(): void { this.sprite.destroy(); }
@@ -686,7 +693,7 @@ export class Ettore extends BossBase {
     if (this.inMoto()) { this.eseguiMoto(dt); return; }
     if (this.fase === 1 && this.vita < this.vitaMax * 0.62) {
       this.fase = 2; this.fase2 = true;
-      this.frase(['ADESSO MI ARRABBIO!']); sfx('bossUrlo'); voce('ettore_dunebuggy'); this.w.scuoti(300, 4); this.onFase2?.();
+      this.frase(['ADESSO MI ARRABBIO!']); sfx('bossUrlo'); this.w.scuoti(300, 4); this.onFase2?.();
     }
     if (this.fase === 2 && this.vita < this.vitaMax * 0.28) {
       this.fase = 3;
@@ -802,7 +809,7 @@ export class Ettore extends BossBase {
     const T = this.motoT, bers = this.bers();
     if (T < 2.1) this.guardaDx = bers.x > this.x;   // finche' prepara continua a girarsi verso il bersaglio
     if (t0 === 0) {
-      this.frase(['LA MOTO!!']); sfx('bossUrlo'); this.w.scuoti(260, 3);
+      this.frase(['LA MOTO!!']); sfx('bossUrlo'); voce('ettore_dunebuggy');   // la battuta sulla "dune buggy" va con il lancio della moto this.w.scuoti(260, 3);
       this.w.testo(this.x, this.y - 140, 'ATTENTO!', '#ff5050');
     }
     // fotogramma in base al tempo; dopo il lancio riprende fiato con la posa di ricarica

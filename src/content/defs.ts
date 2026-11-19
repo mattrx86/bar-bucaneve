@@ -70,13 +70,17 @@ export const POSE_ARMA = /^(idle|run_|shoot|shoot_up|crouch|crouch_shoot|jump|ju
 // ---------------------------------------------------------------------------
 // NEMICI: due comportamenti, più fogli grafici ciascuno (scelti a caso)
 // ---------------------------------------------------------------------------
-export type EnemyType = 'gelataio' | 'ubriaco' | 'lanciagelati' | 'kamikaze' | 'balcone';
+export type EnemyType = 'gelataio' | 'ubriaco' | 'lanciagelati' | 'kamikaze' | 'balcone'
+  // HOLY SLUG (la chiesa)
+  | 'chierichetto' | 'suora' | 'suoracarica';
 export interface EnemyDef {
   tipo: EnemyType; sheets: string[]; vita: number; velocita: number; danno: number; punti: number;
   /** mischia: corre addosso con la paletta · lancio: bottiglie ad arco · palline: palline di gelato tese
    *  carica: barcolla e poi si butta addosso · balcone: fermo su un balcone, tira bottiglie dall'alto */
   attacco: 'mischia' | 'lancio' | 'palline' | 'carica' | 'balcone';
   distanza: number; cadenza: number;
+  /** disegno del proiettile (FX) al posto della pallina/bottiglia: turibolo, rosario... (HOLY SLUG) */
+  proiettile?: string;
 }
 /** Altezza dei piedi dei nemici sul balcone (pixel dall'alto dello schermo). */
 export const BALCONE_Y = 86;
@@ -91,6 +95,11 @@ export const ENEMIES: Record<EnemyType, EnemyDef> = {
   lanciagelati: { tipo: 'lanciagelati', sheets: ['vil_gelataio2', 'vil_gelataia'], vita: 24, velocita: 52, danno: 10, punti: 150, attacco: 'palline', distanza: 120, cadenza: 1.25 },
   kamikaze: { tipo: 'kamikaze', sheets: ['vil_ubriaco1', 'vil_ubriaco2'], vita: 26, velocita: 48, danno: 16, punti: 200, attacco: 'carica', distanza: 150, cadenza: 1.5 },
   balcone: { tipo: 'balcone', sheets: ['vil_ubriaca', 'vil_ubriaco1'], vita: 20, velocita: 0, danno: 12, punti: 300, attacco: 'balcone', distanza: 0, cadenza: 2.6 },
+  // HOLY SLUG: chierichetti che tirano il turibolo teso (si salta o ci si abbassa), suore che lanciano il
+  // rosario ad arco, suore che caricano a testa bassa. Numeri sullo stesso metro dei nemici della strada.
+  chierichetto: { tipo: 'chierichetto', sheets: ['vil_chierichetto_rosso', 'vil_chierichetto_blu'], vita: 22, velocita: 74, danno: 11, punti: 150, attacco: 'palline', distanza: 110, cadenza: 1.2, proiettile: 'turibolo' },
+  suora: { tipo: 'suora', sheets: ['vil_suora_blu', 'vil_suora_nera'], vita: 30, velocita: 46, danno: 13, punti: 150, attacco: 'lancio', distanza: 130, cadenza: 1.5, proiettile: 'rosario' },
+  suoracarica: { tipo: 'suoracarica', sheets: ['vil_suora_nera', 'vil_suora_blu'], vita: 28, velocita: 50, danno: 16, punti: 200, attacco: 'carica', distanza: 150, cadenza: 1.5 },
 };
 
 // ---------------------------------------------------------------------------

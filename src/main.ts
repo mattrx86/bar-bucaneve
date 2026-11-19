@@ -1,4 +1,6 @@
 import Phaser from 'phaser';
+// HOLY SLUG: unisce fogli, disegni, musica e voci della chiesa ai cataloghi del gioco (prima delle scene)
+import './content/holy';
 import { VIEW_W, VIEW_H, ZOOM } from './content/defs';
 import { BootScene } from './scenes/BootScene';
 import { TitleScene } from './scenes/TitleScene';

@@ -1,7 +1,8 @@
 // ============================================================================
 // Scena di gioco. Due fasi:
 //  - 'strada': la via di Ponte Arche con le ondate, poi Giova davanti al bar;
-//  - 'cantina': la cantina del Bucaneve con Ettore.
+//  - 'cantina': la cantina del Bucaneve con Ettore;
+//  - 'chiesa': HOLY SLUG, la chiesa gotica con Griso e Don Antonio (dopo la cantina).
 // Lo stato del giocatore (punti, vite, arma) passa da una fase all'altra.
 // ============================================================================
 import Phaser from 'phaser';
@@ -16,20 +17,24 @@ import { PROPS, FX } from '../content/extra';
 import { img, fxTex } from '../core/fx';
 import { BG, SHEETS } from '../content/sprites';
 import { Bullet, BulletOpts, Enemy, Player, World, BossBase, Giova, Ettore } from '../entities';
+import { Griso, DonAntonio } from '../bossChiesa';
+import { CH_BG, WAVES_CHIESA, CHECKPOINT_CHIESA, PICKUPS_CHIESA, GRISO, DON_ANTONIO } from '../content/holy';
+import { ChiesaAmbiente } from './chiesa/ChiesaAmbiente';
 
 interface Prop { s: Phaser.GameObjects.Image; def: PropPos; vita: number; rompe: Rottura }
 import { Controls } from '../core/controls';
 import { mostraTouch } from '../core/touch';
-import { sfx, setMuted, isMuted, voce, musica, parla, setFaseAudio } from '../core/audio';
+import { sfx, setMuted, isMuted, voce, musica, parla, setFaseAudio, sottofondo } from '../core/audio';
 import { loadSave, writeSave } from '../core/save';
 import { txt, zoomCamera, PixelText } from '../core/ui';
 import type { Risultato } from './ResultScene';
 
 /** Stato di un singolo giocatore: punti, vite e arma sono suoi (ogni giocatore ha le proprie vite). */
 export interface PStato { punti: number; vite: number; arma: string; munizioni: number; bombe: number }
-export interface Stato { tempo: number; crediti: number; checkpoint?: 'meta' | 'giova'; g: PStato[] }
+export interface Stato { tempo: number; crediti: number; checkpoint?: 'meta' | 'giova' | 'navata' | 'altare'; g: PStato[] }
+export type Fase = 'strada' | 'cantina' | 'chiesa';
 /** `eroi`: gli id dei personaggi scelti, uno per giocatore (1 o 2). */
-interface Dati { fase: 'strada' | 'cantina'; stato: Stato | null; eroi?: string[] }
+interface Dati { fase: Fase; stato: Stato | null; eroi?: string[] }
 const nuovoPStato = (vite: number): PStato => ({ punti: 0, vite, arma: 'pistola', munizioni: -1, bombe: 10 });
 /** Colori dei due giocatori (etichette sopra la testa e nell'HUD). */
 const COLORE_G = ['#ffe066', '#60d8ff'];
@@ -62,8 +67,15 @@ export class GameScene extends Phaser.Scene implements World {
   private proiettili: Bullet[] = [];
   private casse: { s: Phaser.GameObjects.Image; arma: string }[] = [];
   private boss: BossBase | null = null;
+  /** HOLY SLUG: il secondo boss (Don Antonio) che combatte insieme al primo (Griso). */
+  private boss2: BossBase | null = null;
+  private ambiente: ChiesaAmbiente | null = null;
+  private donArrivato = false;
+  private tempoInizio = 0;
+  /** Tutti i boss in campo (uno in Buca Slug, fino a due in chiesa). */
+  private bossi(): BossBase[] { return [this.boss, this.boss2].filter((b): b is BossBase => !!b); }
   private hero!: HeroDef;
-  private fase: 'strada' | 'cantina' = 'strada';
+  private fase: Fase = 'strada';
   private larghezza = 0;
   private camX = 0;
   private bloccoDx = Infinity;   // la camera non va oltre (ondata in corso)
@@ -100,6 +112,7 @@ export class GameScene extends Phaser.Scene implements World {
     this.st = d?.stato ? { ...d.stato, g: d.stato.g.map((q) => ({ ...q })) } : { tempo: 0, crediti: 0, g: this.eroi.map(() => nuovoPStato(this.diff.vite)) };
     this.congelato = 0; this.stopCd = 0; this.combo = 0; this.comboT = 0; this.colpitoNelBoss = false; this.props = []; this.premi = []; this.continua = null;
     this.nemici = []; this.proiettili = []; this.casse = []; this.boss = null; this.arena = null;
+    this.boss2 = null; this.ambiente = null; this.donArrivato = false; this.tempoInizio = this.st.tempo;
     this.onda = 0; this.ondaViva = []; this.pausa = false; this.finito = false; this.uscita = false;
     this.camX = 0; this.bloccoDx = Infinity; this.rinascitaT = this.eroi.map(() => -1); this.giovaArrivato = false; this.ondaPronta = true;
     this.time.paused = false; // il Clock conserva `paused` anche dopo scene.restart
@@ -107,10 +120,16 @@ export class GameScene extends Phaser.Scene implements World {
 
   create(): void {
     zoomCamera(this);
+    if (this.fase === 'chiesa') {
+      this.ambiente = new ChiesaAmbiente(this);
+      this.larghezza = this.ambiente.larghezza;
+      for (const p of PICKUPS_CHIESA) this.casse.push({ s: img(this, p.x, GROUND_Y, `cassa_${p.arma}`, 'cassa').setOrigin(0.5, 1).setDepth(40), arma: p.arma });
+    } else {
     const pezzi = this.fase === 'strada' ? BG.street.parts : BG.cellar.parts;
     this.larghezza = this.fase === 'strada' ? BG.street.w : BG.cellar.w;
     const dens = this.fase === 'strada' ? BG.street.d : BG.cellar.d;
     pezzi.forEach((_, i) => this.add.image(i * 512, 0, `bg_${this.fase === 'strada' ? 'street' : 'cellar'}_${i}`).setOrigin(0).setDepth(0).setScale(1 / dens));
+    }
 
     if (this.fase === 'strada') {
       // insegna del bar (ChatGPT non scrive bene le lettere: la mettiamo noi)
@@ -120,7 +139,7 @@ export class GameScene extends Phaser.Scene implements World {
       for (const p of PICKUPS) this.casse.push({ s: img(this, p.x, GROUND_Y, `cassa_${p.arma}`, 'cassa').setOrigin(0.5, 1).setDepth(40), arma: p.arma });
     }
 
-    for (const pp of this.fase === 'strada' ? PROPS_STRADA : PROPS_CANTINA) {
+    for (const pp of this.fase === 'strada' ? PROPS_STRADA : this.fase === 'cantina' ? PROPS_CANTINA : []) {
       const d = PROPS[pp.nome]; if (!d) continue;
       const im = this.add.image(pp.x, GROUND_Y + 2 + (pp.dy ?? 0), `prop_${pp.nome}`).setOrigin(0.5, 1).setDepth(pp.z ?? 30).setScale(1 / d.d);
       if (pp.rompe) this.props.push({ s: im, def: pp, vita: pp.vita ?? 20, rompe: pp.rompe });
@@ -140,6 +159,13 @@ export class GameScene extends Phaser.Scene implements World {
       else { this.onda = CHECKPOINT_ONDA; this.giocatori.forEach((p, i) => { p.x = WAVES[CHECKPOINT_ONDA].x - 110 + i * 24; }); this.camX = Math.max(0, this.giocatori[0].x - 150); }
       for (const c of this.casse) if (c.s.x < this.giocatori[0].x) c.s.destroy();
     }
+    // HOLY SLUG: ripartenza a meta' navata o davanti all'altare
+    if (this.fase === 'chiesa' && this.st.checkpoint) {
+      if (this.st.checkpoint === 'altare') { this.onda = WAVES_CHIESA.length; this.giocatori.forEach((p, i) => { p.x = CH_BG.arenaX + 30 + i * 24; }); this.camX = CH_BG.arenaX - 60; }
+      else { this.onda = CHECKPOINT_CHIESA; this.giocatori.forEach((p, i) => { p.x = WAVES_CHIESA[CHECKPOINT_CHIESA].x - 110 + i * 24; }); this.camX = Math.max(0, this.giocatori[0].x - 150); }
+      for (const c of this.casse) if (c.s.x < this.giocatori[0].x) c.s.destroy();
+      this.casse = this.casse.filter((c) => c.s.active);
+    }
 
     this.ctrls = this.eroi.length === 2 ? [new Controls(this, 'p1'), new Controls(this, 'p2')] : [new Controls(this)];
     // in due, un'etichetta sopra la testa dice chi e' chi
@@ -147,12 +173,17 @@ export class GameScene extends Phaser.Scene implements World {
       ? this.giocatori.map((_, i) => txt(this, 0, 0, `${i + 1}P`, 8, COLORE_G[i]).setOrigin(0.5, 1).setDepth(95))
       : [];
     mostraTouch(true);
-    this.events.once('shutdown', () => mostraTouch(false));
+    this.events.once('shutdown', () => { mostraTouch(false); sottofondo(null); });
     this.creaHud();
     this.cameras.main.fadeIn(400);
 
-    setFaseAudio(this.fase === 'strada' ? 'strada' : 'ettore');
-    if (this.fase === 'strada') {
+    setFaseAudio(this.fase === 'strada' ? 'strada' : this.fase === 'chiesa' ? 'chiesa' : 'ettore');
+    if (this.fase === 'chiesa') {
+      musica('chiesa');
+      this.ambiente!.apriPortone(); sfx('bossUrlo');
+      this.time.delayedCall(600, () => parla([this.hero.id, 'eroe'], 'via'));
+      this.annuncio('HOLY SLUG', 'MISSIONE 2: LA CHIESA');
+    } else if (this.fase === 'strada') {
       musica('strada');
       this.time.delayedCall(600, () => parla([this.hero.id, 'eroe'], 'via'));
       this.annuncio('MISSIONE 1', 'ARRIVA AL BAR BUCANEVE');
@@ -171,8 +202,7 @@ export class GameScene extends Phaser.Scene implements World {
       const linea = new Phaser.Geom.Line(p.x, o.y, o.x, o.y);
       const bersagli: { box: Phaser.Geom.Rectangle; colpisci: () => void }[] = [];
       for (const e of this.nemici) if (!e.morto) bersagli.push({ box: e.box(), colpisci: () => e.danno(o.danno, Math.sign(o.x - p.x), false, chi) });
-      const b = this.boss;
-      if (b && !b.morto && b.attivo) bersagli.push({ box: b.box(), colpisci: () => b.danno(o.danno, chi) });
+      for (const b of this.bossi()) if (!b.morto && b.attivo) bersagli.push({ box: b.box(), colpisci: () => b.danno(o.danno, chi) });
       const t = bersagli.find((q) => Phaser.Geom.Intersects.LineToRectangle(linea, q.box));
       if (t) {
         if (o.esplosivo) { this.boom(o.x, o.y, true); t.colpisci(); } else { t.colpisci(); this.scintilla(o.x, o.y); }
@@ -277,7 +307,7 @@ export class GameScene extends Phaser.Scene implements World {
     return !!b && !b.morto && b.attivo && Math.abs(b.x - x) < 34 && Math.abs(b.y - y) < 30;
   }
   colpoMischia(area: Phaser.Geom.Rectangle, danno: number, chi = 0): void {
-    if (this.boss && !this.boss.morto && Phaser.Geom.Intersects.RectangleToRectangle(area, this.boss.box())) this.boss.danno(Math.round(danno * 0.5), chi);
+    for (const b of this.bossi()) if (!b.morto && Phaser.Geom.Intersects.RectangleToRectangle(area, b.box())) b.danno(Math.round(danno * 0.5), chi);
   }
 
   // ------------------------------------------------------------------ ciclo
@@ -311,8 +341,11 @@ export class GameScene extends Phaser.Scene implements World {
     });
     this.aggiornaCamera(dt);
     if (this.fase === 'strada') this.aggiornaStrada();
+    else if (this.fase === 'chiesa') this.aggiornaChiesa();
+    this.ambiente?.update(dt, this.camX);
     for (const e of this.nemici) e.update(dt);
     this.boss?.update(dt);
+    this.boss2?.update(dt);
     this.aggiornaProiettili(dt);
     this.aggiornaCasse();
     this.aggiornaPremi();
@@ -386,12 +419,15 @@ export class GameScene extends Phaser.Scene implements World {
     const arenaX = Math.round(BG.street.barX + (BG.street.barW - VIEW_W) / 2);
     if (!this.arena && !this.giovaArrivato && this.onda >= WAVES.length && this.bloccoDx === Infinity && xg > arenaX + 90) {
       this.arena = { x: arenaX }; this.giovaArrivato = true; this.st.checkpoint = 'giova';
-      setFaseAudio('bucaneve'); musica('giova');
+      // la musica della strada continua anche con Giovanni; il suo "sottofondo" suona sopra, a intervalli
+      setFaseAudio('bucaneve');
+      voce('barista_femmina');
       this.time.delayedCall(700, () => {
         this.boss = new Giova(this, arenaX + VIEW_W + 40);
         this.scalaBoss(this.boss, 1.5);
         this.colpitoNelBoss = false;
-        this.boss.onMorte = () => { parla('giova', 'muore', 1, 0); this.bonusPerfetto(); };
+        this.boss.onMorte = () => { parla('giova', 'muore', 1, 0); sottofondo(null); this.bonusPerfetto(); };
+        this.time.delayedCall(2400, () => { if (this.boss && !this.boss.morto) sottofondo('giova', 14); });
         this.mostraBossHud();
         this.annuncio('GIOVANNI', 'IL BUTTAFUORI DEL BUCANEVE');
       });
@@ -408,6 +444,71 @@ export class GameScene extends Phaser.Scene implements World {
       }
     }
   }
+  // ------------------------------------------------------------------ HOLY SLUG: la chiesa
+  /** Navata: ondate come in strada (stesso cancello, stessa freccia "DIETRO!"), poi l'arena dell'altare. */
+  private aggiornaChiesa(): void {
+    const xg = this.xGuida();
+    if (this.onda < WAVES_CHIESA.length && xg > WAVES_CHIESA[this.onda].x) {
+      if (this.onda === CHECKPOINT_CHIESA && this.st.checkpoint !== 'altare') { this.st.checkpoint = 'navata'; this.annuncio('CHECKPOINT!', 'SE PERDETE RIPARTITE DA QUI'); }
+      const w = WAVES_CHIESA[this.onda++];
+      this.bloccoDx = this.camX + VIEW_W + 40;
+      for (const n of w.nemici) {
+        this.time.delayedCall(n.ritardo * 1000, () => {
+          const x = n.lato === 'dx' ? this.camX + VIEW_W + 24 : this.camX - 24;
+          this.ondaViva.push(this.spawn(n.tipo, x, (w.fretta ?? 1) * this.aggressivita()));
+        });
+      }
+      this.ondaViva = this.ondaViva.filter((e) => !e.morto);
+      this.time.delayedCall(Math.max(...w.nemici.map((n) => n.ritardo)) * 1000 + 50, () => { this.ondaPronta = true; });
+      this.ondaPronta = false;
+    }
+    const vivi = this.ondaViva.some((e) => !e.morto);
+    if (this.ondaPronta && !vivi && this.bloccoDx !== Infinity) {
+      this.bloccoDx = Infinity; this.mostraGo(); this.dietroT = 0;
+    } else if (this.bloccoDx !== Infinity && vivi) {
+      const xr = this.xRetro();
+      const tutti = this.ondaViva.filter((e) => !e.morto).every((e) => e.x < xr - 20);
+      this.dietroT = tutti ? this.dietroT + 1 / 60 : 0;
+      if (this.dietroT > 2.5) { this.dietroT = -3; this.segnalaDietro(); }
+      else if (this.dietroT < 0) this.dietroT += 1 / 60;
+    }
+    // arena dell'altare: entra Griso
+    const arenaX = CH_BG.arenaX;
+    if (!this.arena && !this.giovaArrivato && this.onda >= WAVES_CHIESA.length && this.bloccoDx === Infinity && xg > arenaX + 90) {
+      this.arena = { x: arenaX }; this.giovaArrivato = true; this.st.checkpoint = 'altare';
+      musica('chiesa_boss');
+      this.time.delayedCall(900, () => {
+        const g = new Griso(this, arenaX + VIEW_W + 40);
+        this.scalaBoss(g, 1.5);
+        g.onMorte = () => this.bossFinaleMorto();
+        this.colpitoNelBoss = false;
+        this.boss = g;
+        this.mostraBossHud();
+        this.annuncio(GRISO.nome, GRISO.sottotitolo);
+      });
+    }
+    // a meta' della vita di Griso (o se cade prima) arriva Don Antonio a cercarlo, da sinistra
+    const g = this.boss;
+    if (g && !this.donArrivato && (g.morto || g.vita < g.vitaMax * 0.5)) {
+      this.donArrivato = true;
+      this.time.delayedCall(g.morto ? 1200 : 300, () => {
+        const d = new DonAntonio(this, this.camX - 40, true);
+        this.scalaBoss(d, 1.5);
+        d.onMorte = () => this.bossFinaleMorto();
+        this.boss2 = d;
+        (this.hud.boss.list[1] as PixelText).setText(`${GRISO.nome} E ${DON_ANTONIO.nome}`);
+        this.annuncio(DON_ANTONIO.nome, DON_ANTONIO.sottotitolo, 30);
+        sfx('bossUrlo'); this.scuoti(260, 3);
+        // due chierichetti al seguito
+        this.time.delayedCall(2200, () => { this.spawn('chierichetto', this.camX + VIEW_W + 20); });
+      });
+    }
+  }
+  /** Bonus "perfetto" solo quando sono a terra tutti e due i boss della chiesa. */
+  private bossFinaleMorto(): void {
+    if (this.boss2 && this.bossi().every((b) => b.morto)) this.bonusPerfetto();
+  }
+
   private dietroT = 0;
   /** Freccia rossa lampeggiante a sinistra: "il nemico che manca è dietro di te". */
   private segnalaDietro(): void {
@@ -467,9 +568,10 @@ export class GameScene extends Phaser.Scene implements World {
         e.danno(b.o.danno, Math.sign(b.vx), false, b.o.chi ?? 0); b.colpiti.add(e); this.scintilla(x, y);
         if (!b.o.perforante) { b.morto = true; break; }
       }
-      if (!b.morto && this.boss && !this.boss.morto && this.boss.attivo && !b.colpiti.has(this.boss) && Phaser.Geom.Intersects.LineToRectangle(tratto, this.boss.box())) {
+      for (const bo of this.bossi()) {
+        if (b.morto || bo.morto || !bo.attivo || b.colpiti.has(bo) || !Phaser.Geom.Intersects.LineToRectangle(tratto, bo.box())) continue;
         if (b.o.esplosivo) b.morto = true;
-        else { this.boss.danno(b.o.danno, b.o.chi ?? 0); b.colpiti.add(this.boss); if (!b.o.perforante) b.morto = true; }
+        else { bo.danno(b.o.danno, b.o.chi ?? 0); b.colpiti.add(bo); if (!b.o.perforante) b.morto = true; }
         if (!b.o.esplosivo) this.scintilla(x, y);
       }
       if (b.morto && b.o.esplosivo) this.esplodi(b);
@@ -482,7 +584,7 @@ export class GameScene extends Phaser.Scene implements World {
     this.boom(x, y, r > 40);
     const chi = b.o.chi ?? 0;
     for (const e of this.nemici) if (!e.morto && Math.hypot(e.x - x, e.y - 24 - y) < r + 14) e.danno(b.o.danno, Math.sign(e.x - x), false, chi);
-    if (this.boss && !this.boss.morto && Math.abs(this.boss.x - x) < r + 30) this.boss.danno(b.o.danno, chi);
+    for (const bo of this.bossi()) if (!bo.morto && Math.abs(bo.x - x) < r + 30) bo.danno(b.o.danno, chi);
     for (const pr of this.props) if (pr.vita > 0 && Math.abs(pr.s.x - x) < r + 10) this.dannoProp(pr, 99, chi);
   }
 
@@ -498,7 +600,7 @@ export class GameScene extends Phaser.Scene implements World {
     if (pr.rompe === 'esplode') {
       this.boom(x, y, true);
       for (const e of this.nemici) if (!e.morto && Math.abs(e.x - x) < 50) e.danno(80, Math.sign(e.x - x), false, chi);
-      if (this.boss && !this.boss.morto && Math.abs(this.boss.x - x) < 60) this.boss.danno(60, chi);
+      for (const bo of this.bossi()) if (!bo.morto && Math.abs(bo.x - x) < 60) bo.danno(60, chi);
       for (const p of this.giocatori) if (!p.morto && Math.abs(p.x - x) < 34) p.danno(15);
       for (const q of this.props) if (q !== pr && q.vita > 0 && Math.abs(q.s.x - x) < 60) this.time.delayedCall(150, () => this.dannoProp(q, 99, chi));
     } else {
@@ -613,13 +715,29 @@ export class GameScene extends Phaser.Scene implements World {
         p.rinasci(this.camX + 70 + i * 40); this.testo(p.x, GROUND_Y - 80, 'FORZA!', '#80ff80');
       }
     });
-    // vittoria finale
+    // Ettore battuto: si va in chiesa (HOLY SLUG) con punti, vite e armi
     if (this.fase === 'cantina' && this.boss?.morto && !this.finito && this.boss.mortoT > 1.2) {
       this.giocatori.forEach((p) => { p.vince = true; });
       this.finito = true; this.hud.boss.setVisible(false);
+      // stesso bonus di fine missione di prima (tempo + vite), poi si prosegue in chiesa
       const tempoBonus = Math.max(0, Math.round(3000 - this.st.tempo * 10));
       this.giocatori.forEach((_, i) => this.punti(tempoBonus + Math.max(0, this.st.g[i].vite) * 1000, undefined, undefined, i));
       this.annuncio('MISSIONE COMPIUTA!', `BONUS TEMPO ${tempoBonus} + VITE`);
+      this.time.delayedCall(2600, () => this.annuncio('PROSSIMA FERMATA', 'LA CHIESA', 40));
+      this.time.delayedCall(4600, () => {
+        this.cameras.main.fadeOut(700);
+        this.cameras.main.once('camerafadeoutcomplete', () => this.scene.restart({ fase: 'chiesa', stato: { ...this.statoGiocatore(), checkpoint: undefined }, eroi: this.eroi.map((h) => h.id) }));
+      });
+    }
+    // vittoria finale: in chiesa, Griso e Don Antonio entrambi a terra
+    const bossiFinali = this.bossi();
+    if (this.fase === 'chiesa' && this.donArrivato && bossiFinali.length === 2 && bossiFinali.every((b) => b.morto && b.mortoT > 1.2) && !this.finito) {
+      this.giocatori.forEach((p) => { p.vince = true; });
+      this.finito = true; this.hud.boss.setVisible(false);
+      // bonus tempo sul tempo passato in chiesa (non su tutta la partita)
+      const tempoBonus = Math.max(0, Math.round(3000 - (this.st.tempo - this.tempoInizio) * 10));
+      this.giocatori.forEach((_, i) => this.punti(tempoBonus + Math.max(0, this.st.g[i].vite) * 1000, undefined, undefined, i));
+      this.annuncio('HOLY SLUG COMPIUTA!', `BONUS TEMPO ${tempoBonus} + VITE`);
       this.time.delayedCall(3200, () => this.fine(true));
     }
   }
@@ -627,7 +745,7 @@ export class GameScene extends Phaser.Scene implements World {
   private fine(vittoria: boolean): void {
     this.finito = true;
     const r: Risultato = {
-      vittoria, tempo: this.st.tempo,
+      vittoria, tempo: this.st.tempo, titolo: this.fase === 'chiesa' ? 'HOLY SLUG COMPIUTA!' : undefined,
       giocatori: this.eroi.map((h, i) => ({ nome: h.nome, punti: this.st.g[i].punti })),
     };
     this.cameras.main.fadeOut(500);
@@ -687,7 +805,7 @@ export class GameScene extends Phaser.Scene implements World {
     c.add(txt(this, VIEW_W / 2, 64, 'CONTINUE?', 22, '#ffe066').setOrigin(0.5));
     const t = txt(this, VIEW_W / 2, 104, '9', 28, '#ff6060').setOrigin(0.5);
     c.add(t);
-    c.add(txt(this, VIEW_W / 2, 150, this.fase === 'cantina' ? 'INVIO O TOCCO: RIPARTI DALLA CANTINA' : 'INVIO O TOCCO: RIPARTI DALLA STRADA', 9).setOrigin(0.5));
+    c.add(txt(this, VIEW_W / 2, 150, this.fase === 'cantina' ? 'INVIO O TOCCO: RIPARTI DALLA CANTINA' : this.fase === 'chiesa' ? 'INVIO O TOCCO: RIPARTI DALLA CHIESA' : 'INVIO O TOCCO: RIPARTI DALLA STRADA', 9).setOrigin(0.5));
     c.add(txt(this, VIEW_W / 2, 164, 'I PUNTI RESTANO, SI RIPARTE CON LA PISTOLA', 8, '#c8d0e0').setOrigin(0.5));
     this.continua = { c, t, n: 9, acc: 0, aperto: 0 };
     // da touch: un tocco sul campo (fuori dai pulsanti) conferma, come INVIO
@@ -809,7 +927,9 @@ export class GameScene extends Phaser.Scene implements World {
     const m = Math.floor(this.st.tempo / 60), sec = Math.floor(this.st.tempo % 60);
     this.hud.tempo.setText(`${m}:${String(sec).padStart(2, '0')}`);
     if (this.boss) {
-      const k = Math.ceil((this.boss.vita / this.boss.vitaMax) * 26);
+      // con due boss la barra e' la vita che resta a tutti e due insieme
+      const bb = this.bossi();
+      const k = Math.ceil((bb.reduce((a, b) => a + Math.max(0, b.vita), 0) / bb.reduce((a, b) => a + b.vitaMax, 0)) * 26);
       this.hud.bossSeg.forEach((sg, i) => sg.setVisible(i < k));
     }
   }

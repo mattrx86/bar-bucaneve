@@ -1,4 +1,5 @@
-"""Prova rapida dei due boss (salta la strada). Uso: python3 tests/boss.py [cartella]"""
+"""Prova rapida dei boss di Buca Slug (salta la strada): Giova, Ettore, poi il passaggio in chiesa (HOLY SLUG).
+Uso: python3 tests/boss.py [cartella]"""
 import sys, os
 from playwright.sync_api import sync_playwright
 OUT = sys.argv[1] if len(sys.argv) > 1 else '/tmp/boss'
@@ -17,7 +18,7 @@ def bot(pg, nome, n, every=12):
         if i % 4 == 0: pg.keyboard.press('KeyK')
         if i % every == 0:
             pg.screenshot(path=f'{OUT}/{nome}_{i:03d}.png'); print(nome, i, info)
-        if info.get('morto') and info['fase'] == 'cantina' and pg.evaluate("window.__game.scene.isActive('Result')"): break
+        if info['fase'] == 'chiesa': print('passato in chiesa'); break
         if nome == 'giova' and info['fase'] == 'cantina': print('passato in cantina'); break
     pg.keyboard.up('KeyJ')
 with sync_playwright() as p:
@@ -40,7 +41,7 @@ with sync_playwright() as p:
     pg.wait_for_timeout(1200); pg.screenshot(path=f'{OUT}/intro_ettore.png')
     pg.wait_for_timeout(2500)
     bot(pg, 'ettore', 400, every=16)
-    pg.wait_for_timeout(5000); pg.screenshot(path=f'{OUT}/zz_risultato.png')
-    print('Result attivo:', pg.evaluate("window.__game.scene.isActive('Result')"))
+    pg.wait_for_timeout(1500); pg.screenshot(path=f'{OUT}/zz_chiesa.png')
+    print('Dopo Ettore si entra in chiesa:', pg.evaluate(f"{G}.fase") == 'chiesa')
     print('ERRORI', errs[:8])
     b.close()

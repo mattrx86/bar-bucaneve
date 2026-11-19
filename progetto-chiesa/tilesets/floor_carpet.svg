@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="768" height="192" viewBox="0 0 768 192" shape-rendering="crispEdges">
+<rect width="768" height="192" fill="#171923"/><rect x="8" y="8" width="240" height="80" fill="#494552" stroke="#938797" stroke-width="6"/><path d="M8 32H248M8 64H248M48 8V88M88 8V88M128 8V88M168 8V88M208 8V88" stroke="#302e3c" stroke-width="4"/>
+<rect x="272" y="8" width="240" height="80" fill="#572d39" stroke="#a36b68" stroke-width="6"/><path d="M286 22H498V74H286Z" fill="none" stroke="#d0a17d" stroke-width="4"/><path d="M300 48L392 20L484 48L392 76Z" fill="none" stroke="#c18b70" stroke-width="4"/>
+<rect x="536" y="8" width="224" height="80" fill="#494552" stroke="#938797" stroke-width="6"/><path d="M536 48H760M592 8V88M648 8V88M704 8V88" stroke="#302e3c" stroke-width="4"/>
+<rect x="8" y="112" width="752" height="72" fill="#292936"/><path d="M8 112H760M8 184H760M104 112V184M200 112V184M296 112V184M392 112V184M488 112V184M584 112V184M680 112V184" stroke="#625b6b" stroke-width="5"/></svg>

@@ -5,7 +5,8 @@ import { leaderboard } from '../core/save';
 import { sfx, musica } from '../core/audio';
 import { txt, zoomCamera } from '../core/ui';
 
-export interface Risultato { vittoria: boolean; tempo: number; giocatori: { nome: string; punti: number }[] }
+/** `titolo`: scritta della vittoria (di serie 'ETTORE SCONFITTO!'; dopo la chiesa e' quella di HOLY SLUG). */
+export interface Risultato { vittoria: boolean; tempo: number; giocatori: { nome: string; punti: number }[]; titolo?: string }
 
 export class ResultScene extends Phaser.Scene {
   private ctrl!: Controls;
@@ -16,7 +17,7 @@ export class ResultScene extends Phaser.Scene {
     zoomCamera(this);
     this.pronto = false; // la scena viene riusata: senza questo il ritardo anti-tasto vale solo la prima volta
     this.add.rectangle(0, 0, VIEW_W, VIEW_H, 0x0c0e16).setOrigin(0);
-    txt(this, VIEW_W / 2, 26, r.vittoria ? 'ETTORE SCONFITTO!' : 'GAME OVER', 20, r.vittoria ? '#ffe066' : '#ff6060', 5).setOrigin(0.5);
+    txt(this, VIEW_W / 2, 26, r.vittoria ? (r.titolo ?? 'ETTORE SCONFITTO!') : 'GAME OVER', 20, r.vittoria ? '#ffe066' : '#ff6060', 5).setOrigin(0.5);
     const m = Math.floor(r.tempo / 60), sec = Math.floor(r.tempo % 60);
     const due = r.giocatori.length > 1;
     txt(this, VIEW_W / 2, 52, due ? `TEMPO ${m}:${String(sec).padStart(2, '0')}` : `${r.giocatori[0].nome}   PUNTI ${r.giocatori[0].punti}   TEMPO ${m}:${String(sec).padStart(2, '0')}`, 10).setOrigin(0.5);

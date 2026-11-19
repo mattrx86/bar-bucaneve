@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="256" height="128" viewBox="0 0 256 128" shape-rendering="crispEdges">
+<rect width="256" height="128" fill="#171923"/>
+<g transform="translate(12 8)"><path d="M28 80Q8 44 30 12Q54 40 44 80Z" fill="#f6c35e"/><path d="M30 68Q22 42 32 28Q42 48 36 68Z" fill="#fff0a5"/><rect x="22" y="80" width="30" height="34" fill="#e5d4ae"/></g>
+<g transform="translate(92 8)"><path d="M28 80Q48 48 28 8Q4 42 16 80Z" fill="#f4a94e"/><path d="M28 66Q40 44 28 24Q18 48 24 66Z" fill="#fff0a5"/><rect x="22" y="80" width="30" height="34" fill="#e5d4ae"/></g>
+<g transform="translate(172 8)"><path d="M28 80Q0 48 30 6Q58 42 42 80Z" fill="#ffca62"/><path d="M30 68Q18 44 32 22Q44 48 36 68Z" fill="#fff3b0"/><rect x="22" y="80" width="30" height="34" fill="#e5d4ae"/></g></svg>
