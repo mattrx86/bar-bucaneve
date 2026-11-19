@@ -1,20 +1,37 @@
-# Manifest asset — Chiesa Gotica
+# Manifest asset — Holy Slug
 
-| Area | File sorgente | Contenuto | Stato |
+Coordinate di riferimento: viewport logica 384×216, zoom 3×. I file SVG sono sorgenti vettoriali pixel-art modulari: Claude deve rasterizzarli/splittarli in PNG trasparenti e validarli in gioco. Non sono ancora tutti PNG finali né sprite già caricati nel runtime.
+
+| Area | File | Contenuto | Stato |
 |---|---|---|---|
-| Background | `background/church_parallax.svg` | Navata, muratura, colonne, finestre | SORGENTE CREATA — da separare in layer |
-| Architecture | `architecture/gothic_modules.svg` | Colonne, archi, portali, finestre | SORGENTE CREATA — da estrarre |
-| Tilesets | `tilesets/floor_carpet.svg` | Pavimento in pietra e tappeto | SORGENTE CREATA — da tile-izzare |
-| Props | `props/church_props.svg` | Panca, candeliere, croce, quadro, statua, arredo | SORGENTE CREATA — da estrarre |
-| Altar | `altar/altar_and_rosette.svg` | Altare e rosone/vetrata | SORGENTE CREATA — da rifinire |
-| Lighting | `lighting/candle_flame.svg` | Tre pose fiamma | SORGENTE CREATA — da animare |
-| Boss | da ricevere | Griso | DA RICEVERE / verificare file caricati |
-| Boss | da ricevere | Don Antonio | DA RICEVERE / verificare file caricati |
-| Audio | `audio/music/` | Musiche chiesa | DA VERIFICARE |
-| Audio | `audio/sfx/` | Effetti chiesa | DA VERIFICARE |
+| Background | `background/church_parallax.svg` | Navata, muratura, colonne, finestre | Sorgente SVG presente |
+| Background | `background/entrance_portal.svg` | Portale monumentale d'ingresso e portone | Sorgente SVG presente |
+| Architecture | `architecture/gothic_modules.svg` | Colonne, archi, portali, finestre | Sorgente SVG presente |
+| Parallax | `parallax/parallax_layers.svg` | Fondale profondo, archi intermedi, pavimento | Sorgente SVG presente; gruppi separabili |
+| Tilesets | `tilesets/floor_carpet.svg` | Pavimento in pietra e tappeto | Sorgente SVG presente |
+| Tilesets | `tilesets/stone_floor_variants.svg` | 4 tile 64×64: pietra, variante, tappeto, crepato | Sorgente SVG presente |
+| Props | `props/church_props.svg` | Panca, candeliere, croce, quadro, statua, arredi | Sorgente SVG presente |
+| Foreground | `foreground/foreground_props.svg` | Panca, candelabro, detriti, drappo | Sorgente SVG presente; gruppi separabili |
+| Altar | `altar/altar_and_rosette.svg` | Composizione altare e rosone | Sorgente SVG presente |
+| Altar | `altar/altar_front_detail.svg` | Fronte altare e candele | Sorgente SVG presente |
+| Stained glass | `stained-glass/great_rose_window.svg` | Rosone gotico policromo | Sorgente SVG presente |
+| Lighting | `lighting/candle_flame.svg` | Pose fiamma preliminari | Sorgente SVG presente |
+| Animations | `animations/flames_and_candles.svg` | Strip 4 frame fiamma + candela | Sorgente SVG presente; frame 32×48 |
+| Character reference | `characters/chierichetto/` | 2 PNG caricati dall'utente | Riferimenti originali presenti |
+| Character reference | `characters/don-antonio/` | 11 JPEG caricati dall'utente | Riferimenti originali presenti; identificare il design corretto |
+| Character reference | `characters/griso/` | 1 PNG caricato dall'utente | Riferimento originale presente |
+| Character reference | `characters/suora/` | 2 PNG caricati dall'utente | Riferimenti originali presenti |
+| Audio | `audio/music/`, `audio/sfx/` | Musiche ed effetti | Verificare file effettivi nei branch del gioco |
+
+## Lavoro tecnico ancora necessario
+- Rasterizzare e ritagliare gli SVG in PNG con alpha; rispettare i viewBox e i gruppi nominati.
+- Non usare screenshot degli atlas come sprite singoli.
+- Verificare pixel art a scala nativa, trasparenza, baseline, pivot, dimensioni e continuità tile.
+- Creare ulteriori varianti solo se servono al layout finale.
+- Non inventare sprite alternativi di Griso o Don Antonio: usare le immagini originali fornite dall'utente e confrontarle visivamente.
+- Aggiornare questo manifest con ogni PNG effettivamente esportato e con le sue dimensioni.
 
 ## Vincoli
-- Coordinate gioco note: 384×216 logiche, zoom 3×, DENSITA 1.5, baseline terreno indicativa GROUND_Y=180.
-- Nessuna modifica al gameplay.
-- Non sostituire la cantina finché la nuova scena non supera test visivi e build.
-- Gli SVG sono sorgenti modulari preliminari; non considerarli sprite finali già pronti per il loader Phaser.
+- Non modificare gameplay, collisioni, armi, controlli, HUD, punteggi o salvataggi.
+- Non cancellare o sovrascrivere gli asset originali di Buca Slug.
+- Non considerare completata l'integrazione prima di build, test e screenshot verificati.
