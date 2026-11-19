@@ -1,4 +1,4 @@
-# Bar Bucaneve - prototipo 0.9
+# Bar Bucaneve - prototipo 1.0
 
 Aprite `bar-bucaneve.html` con Chrome, Edge o Firefox (doppio clic). Non serve installare nulla, non serve internet.
 
@@ -17,13 +17,19 @@ Aprite `bar-bucaneve.html` con Chrome, Edge o Firefox (doppio clic). Non serve i
 | Invio | conferma nei menu |
 
 ## Il livello
-1. Strada di Ponte Arche: gelatai (corrono addosso con la paletta) e ubriachi (lanciano bottiglie ad arco: saltate o spostatevi). Le casse danno armi nuove.
+1. Strada di Ponte Arche: gelatai (corrono addosso con la paletta) e ubriachi (lanciano bottiglie ad arco: saltate o spostatevi). Le casse danno armi nuove. **Bombole e fusti rossi esplodono**: sparateci quando ci passano accanto i nemici e ne porta via diversi in un colpo (ma state lontani, l'esplosione fa male anche a voi). Bidoni e cassonetti si sfasciano e a volte lasciano un premio. Regola pratica: le botte e le casse di legno fanno parte del disegno del fondale e non si rompono, tutto quello che è di metallo sì.
 2. Davanti al Bar Bucaneve: **Giova**. Quando lampeggia e grida "!", sta per caricare: saltatelo.
-3. Dentro, in cantina: **Ettore**. Quando compare il "!" sopra la sua testa sta prendendo la mira: spostatevi, accovacciatevi o saltate. Nella seconda fase spara tre raffiche di pallettoni di fila. Mentre ricarica è scoperto e prende più danni. A metà vita si arrabbia e chiama due gelatai.
+3. Dentro, in cantina: **Ettore**, in tre fasi. Sopra la testa compare sempre un avviso che dice *cosa* sta per fare, e ogni attacco si schiva in modo diverso:
+   - **"!"** doppietta mirata addosso: spostatevi o abbassatevi;
+   - **"!!"** ventaglio largo di pallettoni, dal pavimento al soffitto, con **un varco**: trovate il buco e infilatevici;
+   - **"BOTTIGLIE!"** cadono dall'alto sui cerchietti rossi segnati a terra: cambiate posto;
+   - **"SALTA!"** bottiglia che rotola sul pavimento: si salta, abbassarsi non basta.
+   Da vicino non è più al sicuro: sotto il metro vi tira una botta con il calcio della doppietta.
+   Mentre **ricarica** è scoperto e prende più danni: è lì che si recupera terreno. Sulla sua barra della vita ci sono due tacche: al 62% si arrabbia (e chiama due gelatai), sotto il 28% passa all'ultima fase, più veloce, con quattro scariche di fila e due rinforzi.
 4. Alla fine: punteggio e classifica (salvata nel browser di quel computer).
 
 ## Da provare e riferirmi
-- Difficoltà: troppo facile o troppo difficile? (i test automatici sono fatti con un giocatore invincibile)
+- Difficoltà: troppo facile o troppo difficile? Ho alzato parecchio la pressione (nemici più veloci, che attaccano più spesso, e ondate più numerose). Se risulta troppo dura, ditemelo: si abbassa cambiando un numero solo. Ricordate che FACILE adesso è davvero più morbido.
 - Velocità di corsa e altezza del salto.
 - Se qualche posa è sbagliata o storta.
 - Audio provvisorio (generato dal codice). Il pad non è ancora stato provato.

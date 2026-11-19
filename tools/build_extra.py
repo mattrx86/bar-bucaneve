@@ -26,6 +26,10 @@ def b64png(im):
 SHEET, VOCI, OUT, PREV = sys.argv[1:5]
 ARMI = sys.argv[5] if len(sys.argv) > 5 else None
 MUSICA = sys.argv[6] if len(sys.argv) > 6 else None
+# Gli oggetti distruttibili erano poco leggibili perche' troppo piccoli rispetto ai personaggi:
+# una botte alta 26 px accanto a un eroe di 54 px si perdeva nel fondale. Un unico fattore
+# li ingrandisce tutti insieme, cosi' restano coerenti fra loro (rimettere 1.0 per tornare indietro).
+SCALA_OGGETTI = 1.3
 # nome e altezza in gioco (px; l'eroe e' alto 54) riga per riga, da sinistra a destra
 NOMI = [
     [('botte_grande', 40), ('botti_pila', 36), ('botte', 26), ('cassa_vino', 20), ('casse_pila', 36), ('sacchi', 18), ('bidone_latte', 28)],
@@ -44,7 +48,7 @@ for k, riga in enumerate(NOMI):
     for (nome, h), c in zip(riga, r):
         img, _ = estrai_o_ritocca('oggetti', nome, c['img']); hh = (img[..., 3] > 0).any(1).sum()
         d = 1.5  # stessa densita' degli sprite (vedi DMAX in build_assets.py)
-        sm = ink(to_small(img, h * d / hh))
+        sm = ink(to_small(img, h * SCALA_OGGETTI * d / hh))
         m = sm[..., 3] > 0; ys, xs = np.where(m)
         sm = sm[ys.min():ys.max() + 1, xs.min():xs.max() + 1]
         props[nome] = dict(data=b64png(Image.fromarray(sm)), w=round(sm.shape[1] / d, 1), h=round(sm.shape[0] / d, 1), d=d)

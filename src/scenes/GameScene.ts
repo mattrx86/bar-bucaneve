@@ -7,8 +7,11 @@
 import Phaser from 'phaser';
 import {
   VIEW_W, VIEW_H, GROUND_Y, WAVES, PICKUPS, ENEMIES, EnemyType, WEAPONS, getHero, HeroDef,
-  DiffDef, getDiff, PROPS_STRADA, PROPS_CANTINA, PropPos, Rottura, CHECKPOINT_ONDA,
+  DiffDef, getDiff, PROPS_STRADA, PROPS_CANTINA, PropPos, Rottura, CHECKPOINT_ONDA, pix,
 } from '../content/defs';
+
+/** Velocità massima di recupero della camera quando è rimasta indietro (px di gioco al secondo). */
+const CAM_RECUPERO = 300;
 import { PROPS, FX } from '../content/extra';
 import { img, fxTex } from '../core/fx';
 import { BG, SHEETS } from '../content/sprites';
@@ -147,11 +150,34 @@ export class GameScene extends Phaser.Scene implements World {
     const t = txt(this, x, y, s, 9, color).setOrigin(0.5).setDepth(90);
     this.tweens.add({ targets: t, y: y - 16, alpha: 0, duration: 1100, delay: 300, onComplete: () => t.destroy() });
   }
-  scuoti(ms: number, amt: number): void { this.cameras.main.shake(ms, amt); }
+  /** Scossa della camera, ampiezza in PIXEL DI GIOCO (il campo è 384x216).
+   *  Non si usa `camera.shake()`: la sua "intensità" viene moltiplicata per la larghezza
+   *  del canvas (1152) e poi di nuovo per lo zoom (3), cioè x3456, e un semplice colpo
+   *  subito spostava lo schermo di 24 px logici (72 a schermo) scoprendo il nero sopra
+   *  il fondale, che è alto esattamente VIEW_H. Qui la scossa è solo orizzontale, cala
+   *  nel tempo e resta dentro i bordi del mondo, quindi non scopre mai il nero. */
+  scuoti(ms: number, px: number): void {
+    if (this.scossaT > 0 && px <= this.scossaAmp) return; // una scossa forte non viene annullata da una debole
+    this.scossaAmp = px; this.scossaDur = ms / 1000; this.scossaT = this.scossaDur;
+  }
+  private scossaT = 0; private scossaDur = 1; private scossaAmp = 0;
+  /** Mirino a terra: cerchietto che lampeggia dove sta per arrivare qualcosa dall'alto. */
+  mirino(x: number): void {
+    const m = this.add.circle(x, GROUND_Y - 2, 7).setStrokeStyle(1, 0xff6040).setDepth(28);
+    const c = this.add.rectangle(x, GROUND_Y - 2, 11, 1, 0xff6040).setDepth(28);
+    this.tweens.add({ targets: [m, c], alpha: 0.15, duration: 110, yoyo: true, repeat: 4,
+      onComplete: () => { m.destroy(); c.destroy(); } });
+  }
   boom(x: number, y: number, grande: boolean): void {
     // esplosione disegnata (8 fotogrammi) se c'è, altrimenti quella del codice
     const dis = !!FX.boom_0;
-    const k = grande ? 1.25 : 0.7;
+    // Il disegno piu' grande e' alto 34 px: con 1.25 copriva un terzo del raggio che
+    // uccide (60 px per i nemici, 76 per il boss) e si vedevano nemici cadere senza
+    // essere sfiorati. 2 e' un multiplo intero: i pixel restano netti.
+    const k = grande ? 2 : 0.8;
+    if (grande) for (const [dx2, dy2, rit] of [[-17, -4, 70], [17, -9, 140]] as [number, number, number][]) {
+      this.time.delayedCall(rit, () => this.scoppietto(x + dx2, y + dy2));
+    }
     const s = dis ? img(this, x, y, 'boom_0', 'boom0', k).setOrigin(0.5, 0.75) : this.add.image(x, y, 'boom0').setScale(grande ? 1.2 : 0.6);
     s.setDepth(70);
     let i = 0;
@@ -164,7 +190,16 @@ export class GameScene extends Phaser.Scene implements World {
       const c = img(this, x, GROUND_Y + 3, 'cratere', 'fumo', 0.8).setOrigin(0.5, 1).setDepth(29);
       this.tweens.add({ targets: c, alpha: 0, delay: 2500, duration: 800, onComplete: () => c.destroy() });
     }
-    sfx('boom'); if (grande) this.scuoti(160, 0.01);
+    sfx('boom'); if (grande) this.scuoti(160, 4);
+  }
+  /** Scoppio secondario, piu' piccolo: riempie il raggio dell'esplosione grande. */
+  private scoppietto(x: number, y: number): void {
+    const s = img(this, x, y, 'boom_1', 'boom1', 1.1).setOrigin(0.5, 0.75).setDepth(69);
+    let i = 1;
+    this.time.addEvent({ delay: 55, repeat: 5, callback: () => {
+      i++; if (i >= 7) { s.destroy(); return; }
+      const t = fxTex(`boom_${i}`, `boom${i}`); s.setTexture(t.key).setScale(t.s * 1.1);
+    } });
   }
   hitstop(sec: number): void {
     // i colpi piccoli in raffica non devono rallentare tutto il gioco: al massimo uno ogni 0,25 s
@@ -245,14 +280,30 @@ export class GameScene extends Phaser.Scene implements World {
   private aggiornaCamera(dt: number): void {
     const p = this.giocatore;
     if (this.arena) {
-      this.camX = Phaser.Math.Linear(this.camX, this.arena.x, Math.min(1, dt * 4));
+      // smorzamento esponenziale: stessa curva a 30, 60 o 144 fotogrammi al secondo
+      this.camX = Phaser.Math.Linear(this.camX, this.arena.x, 1 - Math.exp(-5 * dt));
       if (Math.abs(this.camX - this.arena.x) < 0.5) this.camX = this.arena.x;
     } else {
       const voluto = Math.min(p.x - 150, this.bloccoDx - VIEW_W);
-      if (voluto > this.camX) this.camX = voluto; // si va solo avanti, come in Metal Slug
+      if (voluto > this.camX) {
+        // Si va solo avanti, come in Metal Slug, ma MAI di scatto. Quando un'ondata
+        // finisce, il blocco si toglie di colpo e il giocatore è spesso appiccicato al
+        // bordo destro: prima la camera ci saltava sopra (misurati 106 px in un solo
+        // fotogramma). Ora recupera il ritardo a velocità limitata, in ~1 s.
+        const ritardo = voluto - this.camX;
+        this.camX = Math.min(voluto, this.camX + Math.min(ritardo * 9, CAM_RECUPERO) * dt);
+      }
     }
     this.camX = Phaser.Math.Clamp(this.camX, 0, this.larghezza - VIEW_W);
-    this.cameras.main.setScroll(Math.round(this.camX), 0);
+    // scossa: orizzontale, in calo, e sempre dentro i bordi del mondo
+    let off = 0;
+    if (this.scossaT > 0) {
+      this.scossaT = Math.max(0, this.scossaT - dt);
+      off = (Math.random() * 2 - 1) * this.scossaAmp * (this.scossaT / this.scossaDur);
+    }
+    const sx = Phaser.Math.Clamp(this.camX + off, 0, this.larghezza - VIEW_W);
+    // agganciata alla griglia dei pixel d'arte: niente tremolio sui fondali
+    this.cameras.main.setScroll(pix(sx), 0);
   }
 
   private aggiornaStrada(): void {
@@ -265,7 +316,7 @@ export class GameScene extends Phaser.Scene implements World {
       for (const n of w.nemici) {
         this.time.delayedCall(n.ritardo * 1000, () => {
           const x = n.xFisso ?? (n.lato === 'dx' ? this.camX + VIEW_W + 24 : this.camX - 24);
-          const e = this.spawn(n.tipo, x);
+          const e = this.spawn(n.tipo, x, (w.fretta ?? 1) * this.diff.aggressivita);
           // chi è sul balcone non blocca l'avanzata: si può ignorare o abbattere sparando in alto
           if (n.tipo !== 'balcone') this.ondaViva.push(e);
         });
@@ -276,7 +327,15 @@ export class GameScene extends Phaser.Scene implements World {
     }
     const vivi = this.ondaViva.some((e) => !e.morto);
     if (this.ondaPronta && !vivi && this.bloccoDx !== Infinity) {
-      this.bloccoDx = Infinity; this.mostraGo();
+      this.bloccoDx = Infinity; this.mostraGo(); this.dietroT = 0;
+    } else if (this.bloccoDx !== Infinity && vivi) {
+      // Un nemico rimasto alle spalle tiene chiuso il cancello dell'ondata mentre il
+      // giocatore e' incollato al bordo destro e guarda a destra: senza un segnale
+      // sembra che il gioco si sia bloccato. Dopo 2,5 s compare una freccia a sinistra.
+      const tutti = this.ondaViva.filter((e) => !e.morto).every((e) => e.x < p.x - 20);
+      this.dietroT = tutti ? this.dietroT + 1 / 60 : 0;
+      if (this.dietroT > 2.5) { this.dietroT = -3; this.segnalaDietro(); }
+      else if (this.dietroT < 0) this.dietroT += 1 / 60;
     }
     // arena di Giova davanti al bar
     const arenaX = Math.round(BG.street.barX + (BG.street.barW - VIEW_W) / 2);
@@ -302,12 +361,20 @@ export class GameScene extends Phaser.Scene implements World {
       }
     }
   }
+  private dietroT = 0;
+  /** Freccia rossa lampeggiante a sinistra: "il nemico che manca è dietro di te". */
+  private segnalaDietro(): void {
+    const f = this.add.image(26, 92, 'freccia').setScrollFactor(0).setDepth(195).setFlipX(true).setTint(0xff6040);
+    const t = txt(this, 26, 108, 'DIETRO!', 8, '#ff8080').setOrigin(0.5).setScrollFactor(0).setDepth(195);
+    this.tweens.add({ targets: [f, t], alpha: 0.15, duration: 280, yoyo: true, repeat: 5,
+      onComplete: () => { f.destroy(); t.destroy(); } });
+  }
   private ondaPronta = true;
   private giovaArrivato = false;
 
-  private spawn(tipo: EnemyType, x: number): Enemy {
+  private spawn(tipo: EnemyType, x: number, fretta = 1): Enemy {
     const def = ENEMIES[tipo];
-    const e = new Enemy(this, def, Phaser.Utils.Array.GetRandom(def.sheets), x);
+    const e = new Enemy(this, def, Phaser.Utils.Array.GetRandom(def.sheets), x, fretta);
     this.nemici.push(e);
     return e;
   }
@@ -324,25 +391,26 @@ export class GameScene extends Phaser.Scene implements World {
       const x = b.sprite.x, y = b.sprite.y;
       if (x < this.camX - 30 || x > this.camX + VIEW_W + 30) { b.morto = true; continue; }
       if (b.o.ostile) {
-        if (!p.morto && p.box().contains(x, y)) {
+        if (!p.morto && Phaser.Geom.Intersects.LineToRectangle(new Phaser.Geom.Line(b.px, b.py, x, y), p.box())) {
           p.danno(b.o.danno); b.morto = true;
           if (b.o.tex === 'bottiglia') this.cocci(x, y);
         }
         continue;
       }
+      const tratto = new Phaser.Geom.Line(b.px, b.py, x, y);
       for (const pr of this.props) {
-        if (pr.vita <= 0 || !pr.s.getBounds().contains(x, y)) continue;
+        if (pr.vita <= 0 || !Phaser.Geom.Intersects.LineToRectangle(tratto, pr.s.getBounds())) continue;
         if (b.o.esplosivo) { b.morto = true; break; }
         this.dannoProp(pr, b.o.danno); if (!b.o.perforante) { b.morto = true; break; }
       }
       if (b.morto) { if (b.o.esplosivo) this.esplodi(b); continue; }
       for (const e of this.nemici) {
-        if (e.morto || b.colpiti.has(e) || !e.box().contains(x, y)) continue;
+        if (e.morto || b.colpiti.has(e) || !Phaser.Geom.Intersects.LineToRectangle(tratto, e.box())) continue;
         if (b.o.esplosivo) { b.morto = true; break; }
         e.danno(b.o.danno, Math.sign(b.vx)); b.colpiti.add(e); this.scintilla(x, y);
         if (!b.o.perforante) { b.morto = true; break; }
       }
-      if (!b.morto && this.boss && !this.boss.morto && this.boss.attivo && !b.colpiti.has(this.boss) && this.boss.box().contains(x, y)) {
+      if (!b.morto && this.boss && !this.boss.morto && this.boss.attivo && !b.colpiti.has(this.boss) && Phaser.Geom.Intersects.LineToRectangle(tratto, this.boss.box())) {
         if (b.o.esplosivo) b.morto = true;
         else { this.boss.danno(b.o.danno); b.colpiti.add(this.boss); if (!b.o.perforante) b.morto = true; }
         if (!b.o.esplosivo) this.scintilla(x, y);
@@ -376,7 +444,7 @@ export class GameScene extends Phaser.Scene implements World {
       const p = this.giocatore; if (!p.morto && Math.abs(p.x - x) < 34) p.danno(15);
       for (const q of this.props) if (q !== pr && q.vita > 0 && Math.abs(q.s.x - x) < 60) this.time.delayedCall(150, () => this.dannoProp(q, 99));
     } else {
-      sfx('nemicoMorto');
+      sfx('nemicoMorto'); this.hitstop(0.05); this.scuoti(110, 2);
       const tex = pr.rompe === 'vetro' ? 'px' : 'scheggia';
       if (this.detriti(x, y, 0.8)) { this.polvere(x); }
       else for (let i = 0; i < 9; i++) {
@@ -519,8 +587,12 @@ export class GameScene extends Phaser.Scene implements World {
       musica('battaglia-ettore');
       const e = new Ettore(this, this.camX + VIEW_W + 40); // appena fuori dallo schermo, non in fondo alla cantina
       e.onFase2 = () => {
-        // a metà vita chiama rinforzi
+        // a 62% di vita chiama rinforzi
         this.time.delayedCall(400, () => { this.spawn('gelataio', this.camX - 20); this.spawn('gelataio', this.camX + VIEW_W + 20); });
+      };
+      e.onFase3 = () => {
+        // ultimo quarto: due ubriachi che tirano bottiglie mentre Ettore tiene sotto tiro
+        this.time.delayedCall(500, () => { this.spawn('ubriaco', this.camX - 20); this.spawn('lanciagelati', this.camX + VIEW_W + 20); });
       };
       e.onMorte = () => { voce('ettore_muore'); this.bonusPerfetto(); };
       this.colpitoNelBoss = false;
@@ -621,6 +693,12 @@ export class GameScene extends Phaser.Scene implements World {
     if (!this.boss) return;
     this.hud.boss.setVisible(true);
     (this.hud.boss.list[1] as PixelText).setText(this.boss.nome);
+    // Tacche sulle soglie delle fasi di Ettore: si vede arrivare il momento in cui si incattivisce.
+    if (this.boss instanceof Ettore) {
+      for (const [q, col] of [[0.62, 0xffa040], [0.28, 0xff4040]] as [number, number][]) {
+        this.hud.boss.add(this.add.rectangle(Math.round(q * 130) - 1, -2, 1, 10, col).setOrigin(0).setDepth(1));
+      }
+    }
   }
   private annuncio(a: string, b: string, dy = 0): void {
     const t1 = txt(this, VIEW_W / 2, 64 + dy, a, 16, '#ffe066').setOrigin(0.5).setScrollFactor(0).setDepth(150);
