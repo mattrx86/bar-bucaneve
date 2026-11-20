@@ -15,7 +15,9 @@ with sync_playwright() as p:
     print('coarse', pg.evaluate("matchMedia('(pointer: coarse)').matches"))
     pg.screenshot(path=f'{OUT}/t1_titolo.png')
     pg.touchscreen.tap(300, 140); pg.wait_for_timeout(600)    # TOCCA PER INIZIARE
-    pg.touchscreen.tap(300, 140); pg.wait_for_timeout(1200)   # 1 GIOCATORE
+    r = pg.evaluate("(()=>{const c=document.querySelector('canvas').getBoundingClientRect(); return [c.left,c.top,c.width,c.height]})()")
+    y1 = pg.evaluate("window.__game.scene.getScene('Title').voci[0].getBounds().centerY")
+    pg.touchscreen.tap(r[0] + r[2] / 2, r[1] + y1 / 216 * r[3]); pg.wait_for_timeout(1200)   # 1 GIOCATORE (gia' scelta: un tocco conferma)
     print('scena dopo tap titolo', pg.evaluate("window.__game.scene.getScenes(true).map(s=>s.scene.key)"))
     pg.screenshot(path=f'{OUT}/t2_sel.png')
     # tocca il primo eroe, poi di nuovo per confermare

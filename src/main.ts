@@ -6,6 +6,7 @@ import { BootScene } from './scenes/BootScene';
 import { TitleScene } from './scenes/TitleScene';
 import { SelectScene } from './scenes/SelectScene';
 import { GameScene } from './scenes/GameScene';
+import { ClassificaScene } from './scenes/ClassificaScene';
 import { ResultScene } from './scenes/ResultScene';
 import { iniziaTouch } from './core/touch';
 import { unlockAudio } from './core/audio';
@@ -20,7 +21,7 @@ const game = new Phaser.Game({
   roundPixels: true,
   input: { gamepad: true },
   scale: { mode: Phaser.Scale.NONE },
-  scene: [BootScene, TitleScene, SelectScene, GameScene, ResultScene],
+  scene: [BootScene, TitleScene, SelectScene, GameScene, ResultScene, ClassificaScene],
 });
 (window as any).__game = game;
 

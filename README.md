@@ -1,4 +1,4 @@
-# BUCA SLUG - prototipo 1.7
+# BUCA SLUG - prototipo 1.8
 
 Run'n'gun stile Metal Slug. Strada di Ponte Arche (gelatai e ubriachi) -> Giova davanti al Bar Bucaneve -> Ettore in cantina.
 
@@ -26,6 +26,14 @@ Scaricate `bar-bucaneve.html` e apritelo con doppio clic (Chrome, Edge o Firefox
 - `src/entities.ts`: giocatore, nemici, Giova, Ettore.
 - `src/scenes/`: Boot, Title, Select, Game (fasi strada e cantina), Result.
 - `richieste/`: **richieste di modifica degli amici** (istruzioni + materiali). Le eseguo solo quando me lo dite; vedi `richieste/LEGGIMI.md`.
+
+## Novità 1.8 — menu da telefono, classifica e schermo intero
+
+- Menu col touch: tocca una voce per sceglierla, toccala di nuovo per iniziare.
+- Nuova voce **CLASSIFICA GENERALE** nel menu (tasto 4): primi 10, partita completa o solo ultimo livello (frecce sinistra/destra).
+- Il nickname del giocatore è al centro sotto «PREMI UN TASTO»; si cambia toccandolo o col tasto N.
+- Pulsante ⛶ in alto a destra nei menu per lo schermo intero (Android e computer). Su iPhone: Safari → Condividi → «Aggiungi alla schermata Home».
+- Con il telefono in verticale compare l'avviso «GIRA IL TELEFONO IN ORIZZONTALE».
 
 ## Novità 1.7 — classifica generale e gioco online
 - **Si gioca dal browser**: https://mattrx86.github.io/bar-bucaneve/ (GitHub Pages, si aggiorna da solo a ogni versione).

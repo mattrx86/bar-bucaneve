@@ -23,6 +23,17 @@ let inPartita = false;
 let pad: HTMLDivElement, manopola: HTMLDivElement;
 const bottoni: { el: HTMLDivElement }[] = [];
 let barra: HTMLDivElement[] = [];
+/** Pulsante "schermo intero" dei menu (in partita c'e' quello della barra in alto a destra). */
+let tastoMenu: HTMLDivElement | null = null;
+/** Il browser permette lo schermo intero? (Android e computer si; iPhone no: li' si usa "Aggiungi alla
+ *  schermata Home", che apre il gioco gia' senza barre) */
+export const schermoInteroPossibile = (): boolean => !!document.fullscreenEnabled && !!document.documentElement.requestFullscreen;
+export function schermoIntero(): void {
+  if (document.fullscreenElement) { void document.exitFullscreen(); return; }
+  void document.documentElement.requestFullscreen?.()
+    .then(() => (screen.orientation as unknown as { lock?: (o: string) => Promise<void> })?.lock?.('landscape'))
+    .catch(() => { /* il browser puo' rifiutare */ });
+}
 
 function azzera(): void {
   touch.sx = touch.dx = touch.su = touch.giu = touch.fuoco = false;
@@ -34,6 +45,7 @@ function aggiorna(): void {
   if (!radice) return;
   const mostra = inPartita && touch.attivo;
   radice.style.display = mostra ? 'block' : 'none';
+  if (tastoMenu) tastoMenu.style.display = !inPartita && touch.attivo && schermoInteroPossibile() && !document.fullscreenElement ? 'flex' : 'none';
   if (mostra) disponi(); else azzera();
 }
 
@@ -141,10 +153,15 @@ export function iniziaTouch(): void {
   });
   const pausa = crea({ borderRadius: '12px' }, 'II'); premibile(pausa, () => touch.taps.add('pausa'), () => {});
   const intero = crea({ borderRadius: '12px' }, '⛶');
-  premibile(intero, () => {
-    if (document.fullscreenElement) void document.exitFullscreen();
-    else void document.documentElement.requestFullscreen?.().catch(() => { /* il browser puo' rifiutare */ });
-  }, () => {});
+  premibile(intero, schermoIntero, () => {});
+  if (!schermoInteroPossibile()) intero.style.visibility = 'hidden';
+  // nei menu: pulsante grande in alto a destra, sparisce a schermo intero
+  tastoMenu = crea({ position: 'fixed', top: '8px', right: '8px', width: '46px', height: '46px', borderRadius: '10px',
+    fontSize: '26px', zIndex: '21', background: 'rgba(20,24,40,0.7)', border: '2px solid #ffe066', color: '#ffe066' }, '⛶');
+  tastoMenu.title = 'Schermo intero';
+  premibile(tastoMenu, schermoIntero, () => {});
+  document.body.appendChild(tastoMenu);
+  document.addEventListener('fullscreenchange', aggiorna);
   barra = [pausa, intero];
   barra.forEach((el) => radice!.appendChild(el));
 

@@ -1,4 +1,4 @@
-# BUCA SLUG - prototipo 1.7
+# BUCA SLUG - prototipo 1.8
 
 Aprite `bar-bucaneve.html` con Chrome, Edge o Firefox (doppio clic). Non serve installare nulla, non serve internet.
 
@@ -93,6 +93,14 @@ Su un computer con schermo touch il pannello compare alla prima ditata e sparisc
 ## Novità della 0.8
 - Musica della strada: il nuovo brano strumentale, reso suoneria polifonica 8 bit.
 - Ogni posa e ogni oggetto ritagliati e puliti sono in `estratti/`; per correggerne uno basta metterlo in `grafica/ritocchi/` (vedi `estratti/LEGGIMI.md`).
+
+## Novità 1.8 — menu da telefono, classifica e schermo intero
+
+- Menu col touch: tocca una voce per sceglierla, toccala di nuovo per iniziare.
+- Nuova voce **CLASSIFICA GENERALE** nel menu (tasto 4): primi 10, partita completa o solo ultimo livello (frecce sinistra/destra).
+- Il nickname del giocatore è al centro sotto «PREMI UN TASTO»; si cambia toccandolo o col tasto N.
+- Pulsante ⛶ in alto a destra nei menu per lo schermo intero (Android e computer). Su iPhone: Safari → Condividi → «Aggiungi alla schermata Home».
+- Con il telefono in verticale compare l'avviso «GIRA IL TELEFONO IN ORIZZONTALE».
 
 ## Novità 1.7 — classifica generale e gioco online
 - **Si gioca dal browser**: https://mattrx86.github.io/bar-bucaneve/ (GitHub Pages, si aggiorna da solo a ogni versione).
