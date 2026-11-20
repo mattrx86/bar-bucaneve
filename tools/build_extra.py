@@ -232,6 +232,16 @@ if os.path.isfile(_bt):
     _sm = to_small(_b, 16 * 1.5 / _b.shape[0])          # alta 16 px di gioco, pixel netti (nearest)
     fx['bottiglia_strada'] = dict(data=b64png(Image.fromarray(_sm)), w=round(_sm.shape[1] / 1.5, 1), h=round(_sm.shape[0] / 1.5, 1), d=1.5)
 
+# --- bottiglie blu e marrone (grafica/oggetti): con la verde sono quelle che Ettore lancia e fa rotolare in cantina ---
+# Lo sfondo di questi due disegni ha un velo di pixel quasi trasparenti: il ritaglio usa solo i pixel ben visibili.
+for _nome, _file in (('bottiglia_blu', 'Bottiglia blu pixel art.png'), ('bottiglia_marrone', 'Bottiglia pixel art marrone con etichetta verde.png')):
+    _bt = os.path.join(os.path.dirname(SHEET), _file)
+    if not os.path.isfile(_bt): continue
+    _b = load_mask(_bt, 'alpha'); _m = _b[..., 3] > 128; _ys, _xs = np.where(_m)
+    _b = _b[_ys.min():_ys.max() + 1, _xs.min():_xs.max() + 1]
+    _sm = to_small(_b, 16 * 1.5 / _b.shape[0])          # alta 16 px di gioco come la verde
+    fx[_nome] = dict(data=b64png(Image.fromarray(_sm)), w=round(_sm.shape[1] / 1.5, 1), h=round(_sm.shape[0] / 1.5, 1), d=1.5)
+
 # ---------------------------------------------------------------------------
 # Musica: i brani veri, interi, solo ricompressi in mp3 (stereo 80 kbit) e portati a un livello
 # sonoro uniforme (loudnorm). Il volume di riproduzione lo decide src/core/audio.ts (VOL_MUSICA).

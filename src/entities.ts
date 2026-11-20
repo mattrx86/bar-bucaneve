@@ -930,12 +930,17 @@ export class Ettore extends BossBase {
     sfx('doppiettaVentaglio', 1, panDi(this.w, this.x)); this.w.scuoti(170, 4);
   }
 
+  /** Bottiglia disegnata (verde, blu o marrone, a caso) per i lanci di Ettore. */
+  private bottigliaEttore(): string {
+    return Phaser.Utils.Array.GetRandom(['bottiglia_strada', 'bottiglia_blu', 'bottiglia_marrone']);
+  }
+
   /** Bottiglie dal soffitto sui mirini già mostrati: obbliga a cambiare posto. */
   private lanciaBottiglie(): void {
     const bersagli = this.bersagliPioggia.length ? this.bersagliPioggia : [this.bers().x];
     bersagli.forEach((x, i) => {
       this.w.sc.time.delayedCall(i * 110, () => {
-        this.w.sparaProiettile({ x, y: 6, ang: Math.PI / 2, speed: 150, danno: ETTORE.danno, tex: 'bottiglia', ostile: true, gittata: 400, arco: true });
+        this.w.sparaProiettile({ x, y: 6, ang: Math.PI / 2, speed: 150, danno: ETTORE.danno, tex: 'bottiglia', disegno: this.bottigliaEttore(), scala: 0.9, ostile: true, gittata: 400, arco: true });
       });
     });
     this.bersagliPioggia = [];
@@ -950,7 +955,7 @@ export class Ettore extends BossBase {
       this.w.sc.time.delayedCall(i * 260, () => {
         this.w.sparaProiettile({
           x: this.x + dir * 20, y: GROUND_Y - 7, ang: this.guardaDx ? 0 : Math.PI,
-          speed: 210, danno: ETTORE.danno, tex: 'bottiglia', ostile: true, gittata: 460,
+          speed: 210, danno: ETTORE.danno, tex: 'bottiglia', disegno: this.bottigliaEttore(), scala: 0.9, ostile: true, gittata: 460,
         });
       });
     }
