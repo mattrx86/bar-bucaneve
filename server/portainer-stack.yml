@@ -47,3 +47,11 @@ services:
       interval: 2m
       timeout: 10s
       retries: 3
+
+# Rete propria con indirizzi fissi: l'utente del database accetta connessioni SOLO da qui
+# (su questo Synology Docker altrimenti sceglie da solo la rete, es. 192.168.96.x, e puo' cambiarla).
+networks:
+  default:
+    ipam:
+      config:
+        - subnet: 172.30.96.0/29

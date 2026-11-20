@@ -51,7 +51,7 @@ MariaDB 10 di Synology, database "bucaslug", utente con soli permessi su quel da
 
 Possibili errori:
 - **"Access denied" all'avvio del container:** la password del `.env` è diversa da quella dello script.
-- **La rete Docker non inizia per `172.`:** in SSH controllate con `docker network inspect bridge | grep Subnet`.
+- **"Pool overlaps" all'avvio:** la rete 172.30.96.0/29 e' gia' usata; cambiatela in docker-compose.yml e nell'host dell'utente.
 
 ### 2. Controllo di MariaDB 10
 DSM → **MariaDB 10**: annotate la **porta** (di solito 3307) e verificate che **"Abilita connessione TCP/IP"** sia attivo.
