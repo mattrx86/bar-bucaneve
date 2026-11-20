@@ -6,7 +6,8 @@ const VERSION = 1;
 
 export interface Entry { nome: string; punti: number; data: string }
 export interface SaveData { v: number; charId: string | null; muted: boolean; record: Entry[]; diff?: string; /** ultimo modo scelto: 1 o 2 giocatori */ giocatori?: number; /** personaggio del secondo giocatore */ charId2?: string | null;
-  /** nickname e token della classifica generale (giocatore 1 e 2), vedi core/classifica.ts */ nick?: string; token?: string; nick2?: string; token2?: string }
+  /** nickname e token della classifica generale (giocatore 1 e 2), vedi core/classifica.ts */ nick?: string; token?: string; nick2?: string; token2?: string;
+  /** false = token creato qui ma il server non ha ancora confermato la registrazione (rete assente o lenta) */ reg?: boolean; reg2?: boolean }
 
 const DEFAULT: SaveData = { v: VERSION, charId: null, muted: false, record: [] };
 

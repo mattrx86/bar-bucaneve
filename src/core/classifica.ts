@@ -16,9 +16,9 @@ export interface Riga { pos: number; nick: string; punti: number; personaggio: s
 export interface Partita { punti: number; personaggio: string; livello: string; tempo: number; modo: Modo; giocatori: number }
 export interface Esito { ok: boolean; posizione?: number; record?: boolean; messaggio?: string }
 
-async function chiama(percorso: string, corpo?: unknown): Promise<{ stato: number; dati: Record<string, unknown> }> {
+async function chiama(percorso: string, corpo?: unknown, attesaMs = 6000): Promise<{ stato: number; dati: Record<string, unknown> }> {
   const ctl = new AbortController();
-  const t = setTimeout(() => ctl.abort(), 6000);
+  const t = setTimeout(() => ctl.abort(), attesaMs);
   try {
     const r = await fetch(API_CLASSIFICA + percorso, corpo === undefined
       ? { signal: ctl.signal }
@@ -29,14 +29,24 @@ async function chiama(percorso: string, corpo?: unknown): Promise<{ stato: numbe
   } finally { clearTimeout(t); }
 }
 
-/** Nickname e token salvati per il giocatore 1 o 2 di questo browser. */
-export function nickSalvato(slot: 0 | 1): { nick: string; token: string } | null {
-  const s = loadSave();
-  const nick = slot ? s.nick2 : s.nick; const token = slot ? s.token2 : s.token;
-  return nick ? { nick, token: token ?? '' } : null;
+/** Token segreto nuovo: 32 byte casuali del browser, in esadecimale (64 caratteri). */
+function nuovoToken(): string {
+  const b = new Uint8Array(32);
+  crypto.getRandomValues(b);
+  return Array.from(b, (x) => x.toString(16).padStart(2, '0')).join('');
 }
-function salva(slot: 0 | 1, nick: string, token: string): void {
-  writeSave(slot ? { nick2: nick, token2: token } : { nick, token });
+
+/** Nickname e token salvati per il giocatore 1 o 2 di questo browser.
+ *  `registrato` = il server ha confermato che quel nickname appartiene a questo token. */
+export function nickSalvato(slot: 0 | 1): { nick: string; token: string; registrato: boolean } | null {
+  const s = loadSave();
+  const nick = slot ? s.nick2 : s.nick; const token = (slot ? s.token2 : s.token) ?? '';
+  const reg = slot ? s.reg2 : s.reg;
+  // i salvataggi delle versioni precedenti non hanno "reg": li' un token presente era sempre confermato
+  return nick ? { nick, token, registrato: !!token && reg !== false } : null;
+}
+function salva(slot: 0 | 1, nick: string, token: string, registrato: boolean): void {
+  writeSave(slot ? { nick2: nick, token2: token, reg2: registrato } : { nick, token, reg: registrato });
 }
 
 /** Il nickname scritto e' accettabile? (stesse regole del server) */
@@ -45,17 +55,23 @@ export function nickValido(n: string): string | null {
   return /^[A-Z0-9_.-]{3,12}$/.test(v) ? v : null;
 }
 
-/** Registra un nickname nuovo per il giocatore `slot`. Se il server non risponde il nickname vale lo
- *  stesso (le partite restano locali) e si riprova a registrarlo alla prossima partita. */
-export async function registra(slot: 0 | 1, nick: string): Promise<{ ok: boolean; messaggio: string }> {
+/** Registra il nickname per il giocatore `slot`.
+ *  Il token lo crea il gioco e lo salva PRIMA di sapere com'e' andata: se la risposta del server si perde
+ *  (rete lenta), al tentativo successivo si manda lo stesso token e il server riconosce la registrazione gia'
+ *  fatta, invece di rispondere "nickname gia' usato". Se il server non risponde il nickname vale lo stesso
+ *  (le partite restano locali) e si riprova alla prossima partita.
+ *  `ripeti` = conferma col server anche un nickname gia' registrato (per esempio cancellato da phpMyAdmin). */
+export async function registra(slot: 0 | 1, nick: string, ripeti = false): Promise<{ ok: boolean; messaggio: string; preso?: boolean }> {
   const prima = nickSalvato(slot);
-  if (prima && prima.nick === nick && prima.token) return { ok: true, messaggio: '' };
+  if (!ripeti && prima && prima.nick === nick && prima.registrato) return { ok: true, messaggio: '' };
+  const token = prima && prima.nick === nick && prima.token ? prima.token : nuovoToken();
   try {
-    const { stato, dati } = await chiama('giocatore.php', { nick });
-    if (stato === 201 && typeof dati.token === 'string') { salva(slot, nick, dati.token); return { ok: true, messaggio: '' }; }
-    return { ok: false, messaggio: String(dati.messaggio ?? 'Errore del server') };
+    const { stato, dati } = await chiama('giocatore.php', { nick, token }, 15000);
+    // il server aggiornato rimanda lo stesso token; uno vecchio ne crea uno suo: vale quello che risponde
+    if ((stato === 200 || stato === 201) && typeof dati.token === 'string') { salva(slot, nick, dati.token, true); return { ok: true, messaggio: '' }; }
+    return { ok: false, messaggio: String(dati.messaggio ?? 'Errore del server'), preso: stato === 409 };
   } catch {
-    salva(slot, nick, '');
+    salva(slot, nick, token, false);
     return { ok: true, messaggio: 'Classifica generale non raggiungibile: per ora i punti restano su questo dispositivo.' };
   }
 }
@@ -66,15 +82,30 @@ export async function inviaPartita(slot: 0 | 1, p: Partita): Promise<Esito> {
   if (!g) return { ok: false, messaggio: 'NESSUN NICKNAME' };
   void leaderboard.submit({ nome: g.nick, punti: p.punti, data: new Date().toLocaleDateString('sv-SE') });   // copia locale
   try {
-    if (!g.token) {   // nickname scelto quando il server non rispondeva: si registra adesso
+    if (!g.registrato) {   // nickname scelto quando il server non rispondeva (o non ha risposto in tempo): si conferma adesso
       const r = await registra(slot, g.nick);
+      if (r.preso) {
+        // il nickname e' di qualcun altro: lo si toglie da questo dispositivo, alla prossima partita se ne sceglie uno
+        writeSave(slot ? { nick2: undefined, token2: undefined, reg2: undefined } : { nick: undefined, token: undefined, reg: undefined });
+        return { ok: false, messaggio: "NICKNAME DI UN ALTRO: SCEGLINE UN ALTRO" };
+      }
       if (!r.ok) return { ok: false, messaggio: r.messaggio.toUpperCase() };
     }
-    const n = nickSalvato(slot)!;
-    if (!n.token) return { ok: false, messaggio: 'CLASSIFICA GENERALE NON RAGGIUNGIBILE' };
-    const { stato, dati } = await chiama('punteggio.php', { nick: n.nick, token: n.token, ...p });
-    if (stato === 201) return { ok: true, posizione: Number(dati.posizione), record: !!dati.record };
-    return { ok: false, messaggio: String(dati.messaggio ?? 'ERRORE DEL SERVER').toUpperCase() };
+    for (let tentativo = 0; tentativo < 2; tentativo++) {
+      const n = nickSalvato(slot)!;
+      if (!n.registrato) return { ok: false, messaggio: 'CLASSIFICA GENERALE NON RAGGIUNGIBILE' };
+      const { stato, dati } = await chiama('punteggio.php', { nick: n.nick, token: n.token, ...p }, 10000);
+      if (stato === 201) return { ok: true, posizione: Number(dati.posizione), record: !!dati.record };
+      // 401: il server non riconosce piu' questo nickname (per esempio cancellato da phpMyAdmin):
+      // si riregistra una volta con lo stesso token e si riprova
+      if (stato === 401 && tentativo === 0) {
+        const r = await registra(slot, n.nick, true);
+        if (!r.ok) return { ok: false, messaggio: r.messaggio.toUpperCase() };
+        continue;
+      }
+      return { ok: false, messaggio: String(dati.messaggio ?? 'ERRORE DEL SERVER').toUpperCase() };
+    }
+    return { ok: false, messaggio: 'ERRORE DEL SERVER' };
   } catch {
     return { ok: false, messaggio: 'CLASSIFICA GENERALE NON RAGGIUNGIBILE' };
   }

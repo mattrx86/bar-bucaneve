@@ -124,12 +124,23 @@ Aprite https://mattrx86.github.io/bar-bucaneve/ e giocate: alla prima partita il
 
 ## Uso quotidiano
 
-- **Nickname:** si sceglie alla prima partita e resta in quel browser. Si cambia dal menu con **N**, o toccando la scritta in alto a sinistra.
+- **Nickname:** si sceglie alla prima partita e resta in quel browser. Si cambia dal menu con **N**, o toccando la riga verde del giocatore sotto il titolo.
   - Su un altro dispositivo serve un nickname diverso: chi registra un nickname ne diventa il "proprietario".
   - Per liberarne uno: phpMyAdmin → tabella `giocatori` → cancellate la riga. Le partite di quel nickname spariscono insieme.
 - **Classifiche:** due separate, la partita **completa** e **solo ultimo livello**. Conta il miglior punteggio di ogni nickname.
+  - Nickname "orfani" (registrati ma senza nessuna partita, per esempio rimasti bloccati con la versione 1.8 o precedenti): si tolgono tutti insieme in phpMyAdmin → database `bucaslug` → **SQL**:
+    ```sql
+    DELETE g FROM giocatori g LEFT JOIN partite p ON p.giocatore_id = g.id WHERE p.id IS NULL;
+    ```
+    Non tocca chi ha almeno una partita. Chi era registrato ma non aveva ancora punti non perde nulla: alla prossima partita il gioco (dalla 1.8.1) lo riregistra da solo con lo stesso token.
 - **Moderare:** phpMyAdmin → `partite` → nella riga del punteggio truccato mettete `nascosto` a `1`. Sparisce dalla classifica ma resta salvato.
 - **Backup:** aggiungete il database `bucaslug` al vostro backup notturno di MariaDB / Hyper Backup.
+- **Aggiornare i file PHP** (quando cambiano `www/` o `lib/` nel repository): basta sostituire il file nella cartella del NAS, senza ricostruire né riavviare (il codice è montato in sola lettura e PHP non lo tiene in cache). In SSH, per esempio:
+  ```bash
+  cd /volume1/docker/bucaslug
+  sudo cp www/api/giocatore.php www/api/giocatore.php.bak
+  sudo curl -fsSL https://raw.githubusercontent.com/mattrx86/bar-bucaneve/main/server/www/api/giocatore.php -o www/api/giocatore.php
+  ```
 - **Aggiornare PHP:** in `Dockerfile` cambiate `php:8.3-apache`, poi Container Manager → Progetto → **Ricostruisci**. Watchtower non tocca questo container: l'immagine è costruita sul NAS.
 - **Spegnere la classifica:** fermate il progetto in Container Manager. Il gioco continua a funzionare e mostra la classifica locale.
 

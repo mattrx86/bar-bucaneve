@@ -1,4 +1,4 @@
-# BUCA SLUG - prototipo 1.8
+# BUCA SLUG - prototipo 1.8.1
 
 Aprite `bar-bucaneve.html` con Chrome, Edge o Firefox (doppio clic). Non serve installare nulla, non serve internet.
 
@@ -93,6 +93,13 @@ Su un computer con schermo touch il pannello compare alla prima ditata e sparisc
 ## Novità della 0.8
 - Musica della strada: il nuovo brano strumentale, reso suoneria polifonica 8 bit.
 - Ogni posa e ogni oggetto ritagliati e puliti sono in `estratti/`; per correggerne uno basta metterlo in `grafica/ritocchi/` (vedi `estratti/LEGGIMI.md`).
+
+## Novità 1.8.1 — nickname che "non salvava"
+
+- Se la risposta del server alla scelta del nickname si perdeva (rete lenta o telefono), il nome restava registrato sul server ma il telefono non lo sapeva: a fine partita compariva «Nickname già usato» e il punteggio non veniva salvato.
+- Ora il codice segreto (token) lo crea il gioco e la registrazione si può ripetere: se la risposta si perde, al tentativo successivo il server riconosce che il nickname è già di quel telefono.
+- Se un nickname risulta davvero di un altro, a fine partita il gioco lo toglie da quel dispositivo e alla partita dopo ne fa scegliere un altro.
+- Lato NAS va aggiornato `server/www/api/giocatore.php` (vedi server/LEGGIMI.md, «Aggiornare i file PHP»).
 
 ## Novità 1.8 — menu da telefono, classifica e schermo intero
 

@@ -1,4 +1,4 @@
-# BUCA SLUG - prototipo 1.8
+# BUCA SLUG - prototipo 1.8.1
 
 Run'n'gun stile Metal Slug. Strada di Ponte Arche (gelatai e ubriachi) -> Giova davanti al Bar Bucaneve -> Ettore in cantina.
 
@@ -26,6 +26,13 @@ Scaricate `bar-bucaneve.html` e apritelo con doppio clic (Chrome, Edge o Firefox
 - `src/entities.ts`: giocatore, nemici, Giova, Ettore.
 - `src/scenes/`: Boot, Title, Select, Game (fasi strada e cantina), Result.
 - `richieste/`: **richieste di modifica degli amici** (istruzioni + materiali). Le eseguo solo quando me lo dite; vedi `richieste/LEGGIMI.md`.
+
+## Novità 1.8.1 — nickname che "non salvava"
+
+- Se la risposta del server alla scelta del nickname si perdeva (rete lenta o telefono), il nome restava registrato sul server ma il telefono non lo sapeva: a fine partita compariva «Nickname già usato» e il punteggio non veniva salvato.
+- Ora il codice segreto (token) lo crea il gioco e la registrazione si può ripetere: se la risposta si perde, al tentativo successivo il server riconosce che il nickname è già di quel telefono.
+- Se un nickname risulta davvero di un altro, a fine partita il gioco lo toglie da quel dispositivo e alla partita dopo ne fa scegliere un altro.
+- Lato NAS va aggiornato `server/www/api/giocatore.php` (vedi server/LEGGIMI.md, «Aggiornare i file PHP»).
 
 ## Novità 1.8 — menu da telefono, classifica e schermo intero
 
