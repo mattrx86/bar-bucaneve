@@ -50,4 +50,4 @@ networks:
   default:
     ipam:
       config:
-        - subnet: 172.30.96.0/29
+        - subnet: 10.96.96.0/29
