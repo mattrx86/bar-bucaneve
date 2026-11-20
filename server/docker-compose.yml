@@ -32,7 +32,6 @@ services:
       - SETUID
       - SETGID
     mem_limit: 128m
-    pids_limit: 64
     logging:
       driver: json-file
       options: { max-size: "5m", max-file: "2" }
