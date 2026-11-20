@@ -78,9 +78,9 @@ export class ChiesaAmbiente {
       const s = sc.add.image(f.x, f.y, 'fx_fiamma_0').setOrigin(0.5, 1).setDepth(3).setScale((f.k ?? 1) / ff.d);
       this.fiamme.push({ s, fase: Math.random() * 4, vel: 7 + Math.random() * 4 });
     }
-    // portone: due ante sopra il vano, si aprono all'inizio del livello
+    // portone: due ante sopra il vano, si aprono all'inizio del livello (solo col fondale disegnato da codice)
     const p = CH_BG.porta;
-    if (FX.porta) {
+    if (FX.porta && !CH_BG.dipinto) {
       const sx = sc.add.image(p.x, p.y, 'fx_porta').setOrigin(0, 0).setDepth(4).setScale(1 / FX.porta.d).setCrop(0, 0, FX.porta.w * FX.porta.d / 2, FX.porta.h * FX.porta.d);
       const dx = sc.add.image(p.x + p.w, p.y, 'fx_porta').setOrigin(1, 0).setDepth(4).setScale(1 / FX.porta.d).setCrop(FX.porta.w * FX.porta.d / 2, 0, FX.porta.w * FX.porta.d / 2, FX.porta.h * FX.porta.d);
       this.ante = [sx, dx];

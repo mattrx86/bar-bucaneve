@@ -41,6 +41,10 @@ export const WAVES_CHIESA: (Wave & { fretta?: number })[] = [
   { x: 2380, nemici: [s('dx', 0), c('dx', 0.3), c('sx', 0.8), k('dx', 1.3), s('sx', 1.9), k('dx', 2.4)], fretta: 1.4 },
 ];
 export const CHECKPOINT_CHIESA = 4;
+// Le x qui sopra sono pensate per una chiesa lunga 3100 px. Con i fondali dipinti la lunghezza dipende
+// dalle immagini: ondate e casse si ridistribuiscono in proporzione lungo la navata (arena esclusa).
+const SCALA_X = (CH_BG.arenaX) / (3100 - 384);
+if (Math.abs(SCALA_X - 1) > 0.01) for (const w of WAVES_CHIESA) w.x = Math.round(w.x * SCALA_X);
 /** Casse d'arma lungo la navata (stesso sistema della strada). */
 export const PICKUPS_CHIESA: { x: number; arma: string }[] = [
   { x: 690, arma: 'mitragliatrice' },
@@ -48,6 +52,7 @@ export const PICKUPS_CHIESA: { x: number; arma: string }[] = [
   { x: 1730, arma: 'lanciarazzi' },
   { x: 2250, arma: 'mitragliatrice' },
 ];
+if (Math.abs(SCALA_X - 1) > 0.01) for (const p of PICKUPS_CHIESA) p.x = Math.round(p.x * SCALA_X);
 
 // ---------------------------------------------------------------------------
 // BOSS FINALI. Griso entra per primo; a meta' della sua vita arriva Don Antonio a cercarlo

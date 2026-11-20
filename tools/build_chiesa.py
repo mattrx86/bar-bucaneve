@@ -57,8 +57,15 @@ g = P.goccia(); FX['goccia'] = dict(data=b64png(Image.fromarray(g)), w=round(g.s
 report.append(f'boss_donantonio: {len(frames)} pose')
 
 # --- ambiente ---
-BG, fx_amb = A.costruisci(SRC, b64png, PREV)
+import chiesa_dipinti as DP
+_bg_codice, fx_amb = A.costruisci(SRC, b64png, PREV)     # servono comunque fiamme e portone (FX)
 FX.update(fx_amb)
+if DP.presenti(SRC):
+    BG, _ = DP.costruisci(SRC, b64png, PREV)               # fondali dipinti in progetto-chiesa/fondali/
+    report.append('fondali: DIPINTI (progetto-chiesa/fondali/)')
+else:
+    BG = _bg_codice
+    report.append('fondali: disegnati da codice (nessun fondale dipinto in progetto-chiesa/fondali/)')
 report.append(f'chiesa: {BG["w"]} px, arena da {BG["arenaX"]}, {len(BG["fiamme"])} fiamme, {len(BG["luci"])} luci')
 
 for k, v in FX.items():
@@ -103,7 +110,7 @@ with open(OUT, 'w') as f:
             '  lontano: { parts: string[]; w: number; k: number }; navata: { parts: string[]; w: number }; primo: { parts: string[]; w: number; k: number };\n'
             '  luci: { x: number; y: number; r: number; rosone?: number }[]; fiamme: { x: number; y: number; k: number }[];\n'
             '  vetrate: { x: number; y: number; w: number; h: number }[]; porta: { x: number; y: number; w: number; h: number };\n'
-            '  rosone: { x: number; y: number; r: number }; pilastri: number[] }\n')
+            '  rosone: { x: number; y: number; r: number }; pilastri: number[]; dipinto?: number; giunti?: number[] }\n')
     f.write('export const CH_BG: ChiesaBG = ' + json.dumps(BG) + ';\n')
     f.write('export const CH_MUSICA: Record<string, string> = ' + json.dumps(MUSICA) + ';\n')
     f.write('export const CH_VOCI: Record<string, string> = ' + json.dumps(VOCI) + ';\n')
