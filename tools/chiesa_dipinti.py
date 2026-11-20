@@ -38,6 +38,20 @@ def _chiave(rgba):
     return out
 
 
+def fiamme_dipinte(im, minimo=5, unisci=26):
+    """Centri delle fiammelle dipinte (pixel quasi bianchi-gialli e saturi), uniti se vicini."""
+    from scipy import ndimage as nd
+    r, g, b = im[..., 0], im[..., 1], im[..., 2]
+    m = (r > 240) & (g > 200) & (b < 200) & (r - b > 70)
+    lab, n = nd.label(m)
+    pts = []
+    for i, sl in enumerate(nd.find_objects(lab), 1):
+        if (lab[sl] == i).sum() < minimo: continue
+        y, x = (sl[0].start + sl[0].stop) / 2, (sl[1].start + sl[1].stop) / 2
+        if not any(abs(x - px) < unisci and abs(y - py) < unisci for px, py in pts): pts.append((x, y))
+    return pts
+
+
 def pezzo(path, piede_frazione, densita=D):
     """Scala l'immagine in modo che la riga dei piedi (frazione dell'altezza) finisca a y=180 di gioco e
     restituisce una fascia RGBA alta 216 px di gioco (alla densita' indicata)."""
@@ -54,9 +68,9 @@ def pezzo(path, piede_frazione, densita=D):
     return a
 
 
-def cuci(pezzi, cerca=150, sfuma=8):
+def cuci(pezzi, cerca=48, sfuma=10):
     """Cuce i pezzi da sinistra a destra: giunzione sulle colonne piu' simili, sfumata su `sfuma` pixel."""
-    strip = pezzi[0].astype(float); giunti = []
+    strip = pezzi[0].astype(float); giunti = []; scost = [0]
     for q in pezzi[1:]:
         q = q.astype(float)
         A = strip[: int(strip.shape[0] * 0.8), :, :3]; B = q[: int(q.shape[0] * 0.8), :, :3]
@@ -69,10 +83,10 @@ def cuci(pezzi, cerca=150, sfuma=8):
         _, ia, ib = best
         t = np.linspace(0, 1, sfuma)[None, :, None]
         strip = np.concatenate([strip[:, :ia - sfuma], strip[:, ia - sfuma:ia] * (1 - t) + q[:, ib - sfuma:ib] * t, q[:, ib:]], 1)
-        giunti.append((ia - sfuma // 2) / D)
+        giunti.append((ia - sfuma // 2) / D); scost.append(ia - ib)
     out = strip.clip(0, 255).astype(np.uint8)
     out[..., 3] = np.where(out[..., 3] > 127, 255, 0)
-    return out, giunti
+    return out, giunti, scost
 
 
 def presenti(P):
@@ -90,7 +104,7 @@ def costruisci(P, b64png, prev):
     fr = lambda f: float(pf.get(os.path.basename(f), cfg.get('piede_predefinito', TERRA / H_GIOCO)))
     files = _elenco(c, 'ingresso') + _elenco(c, 'navata') + _elenco(c, 'altare')
     pezzi = [pezzo(f, fr(f)) for f in files]
-    nav, giunti = cuci(pezzi)
+    nav, giunti, scost = cuci(pezzi)
     W = nav.shape[1] / D
     if W < 384 * 3: raise SystemExit(f'fondali dipinti troppo corti: {W:.0f} px di gioco (servono almeno 1152)')
     arenaX = W - 384
@@ -106,7 +120,7 @@ def costruisci(P, b64png, prev):
     lon_f = _elenco(c, 'lontano')
     if lon_f and trasparente:
         lp = [pezzo(f, fr(f)) for f in lon_f]
-        lon, _ = cuci(lp) if len(lp) > 1 else (lp[0], [])
+        lon = cuci(lp)[0] if len(lp) > 1 else lp[0]
         wl = int(np.ceil((W - 384) * 0.5 + 384))
         while lon.shape[1] < round(wl * D):  # si ripete se e' corta
             lon = np.concatenate([lon, lon], 1)
@@ -125,8 +139,22 @@ def costruisci(P, b64png, prev):
         primo = dict(parts=parti(pp), w=wp, k=1.15)
     else:
         primo = dict(parts=[], w=0, k=1.15)
-    # luci e fiamme: solo quelle indicate in fondali.json (posizioni in pixel di gioco sul fondale cucito)
-    luci = [dict(x=l['x'], y=l['y'], r=l.get('r', 50), **({'rosone': 1} if l.get('rosone') else {})) for l in cfg.get('luci', [])]
+    # luci: aloni che tremolano sopra le fiamme dipinte. In fondali.json "luci_pezzo" le indica per immagine,
+    # in pixel dell'immagine originale: {"navata_01.png": [[x, y, raggio], ...]}
+    luci = []
+    for f, off in zip(files, scost):
+        h = Image.open(f).height; s_ = TERRA * D / (fr(f) * h)
+        for x, y, r in cfg.get('luci_pezzo', {}).get(os.path.basename(f), []):
+            luci.append(dict(x=round((off + x * s_) / D, 1), y=round(y * s_ / D, 1), r=round(r * s_ / D, 1)))
+    luci += [dict(x=l['x'], y=l['y'], r=l.get('r', 50), **({'rosone': 1} if l.get('rosone') else {})) for l in cfg.get('luci', [])]
+    # rosone dell'altare: indicato in pixel dell'immagine (fondali.json "rosone_pezzo")
+    rp = cfg.get('rosone_pezzo')
+    if rp:
+        i = [os.path.basename(f) for f in files].index(rp['file'])
+        h = Image.open(files[i]).height; s_ = TERRA * D / (fr(files[i]) * h)
+        rx, ry, rr = (scost[i] + rp['x'] * s_) / D, rp['y'] * s_ / D, rp['r'] * s_ / D
+        luci.append(dict(x=round(rx, 1), y=round(ry, 1), r=round(rr * 1.6, 1), rosone=1))
+        cfg['rosone'] = dict(x=round(rx, 1), y=round(ry, 1), r=round(rr, 1))
     fiamme = [dict(x=f['x'], y=f['y'], k=f.get('k', 0.8)) for f in cfg.get('fiamme', [])]
     ros = cfg.get('rosone', {'x': arenaX + 192, 'y': 60, 'r': 40})
     bg = dict(w=round(W), arenaX=round(arenaX), ingresso=0, d=D, dipinto=1,
