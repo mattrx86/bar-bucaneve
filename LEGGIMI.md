@@ -95,6 +95,7 @@ Su un computer con schermo touch il pannello compare alla prima ditata e sparisc
 - Ogni posa e ogni oggetto ritagliati e puliti sono in `estratti/`; per correggerne uno basta metterlo in `grafica/ritocchi/` (vedi `estratti/LEGGIMI.md`).
 
 ## Novità 1.4 — HOLY SLUG
+- **Menu: «SOLO LA CHIESA»** (terza voce, o tasto 3): si entra direttamente in chiesa; sinistra/destra sceglie 1 o 2 giocatori.
 - **Nuovo livello: la chiesa gotica (HOLY SLUG)**, dopo la cantina. Battuto Ettore arriva il bonus di fine missione di sempre, poi si entra in chiesa con punti, vite e armi.
   - **Ingresso**: controfacciata con il portale; il portone si apre sulla notte.
   - **Navata**: 9 ondate di chierichetti (turibolo tirato teso: si salta o ci si abbassa) e suore (rosario lanciato ad arco, oppure carica a testa bassa). C'è un checkpoint a metà e ci sono 4 casse d'arma.

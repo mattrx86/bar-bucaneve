@@ -21,11 +21,14 @@ export class SelectScene extends Phaser.Scene {
   private titolo!: PixelText;
   /** 1 o 2 giocatori; `turno` = chi sta scegliendo (0 = primo, 1 = secondo) */
   private n = 1;
+  /** da dove si parte: la strada (partita normale) o direttamente la chiesa (HOLY SLUG) */
+  private fase: 'strada' | 'chiesa' = 'strada';
   private turno = 0;
   private scelto: string[] = [];
   constructor() { super('Select'); }
 
-  create(d?: { giocatori?: number }): void {
+  create(d?: { giocatori?: number; fase?: 'strada' | 'chiesa' }): void {
+    this.fase = d?.fase === 'chiesa' ? 'chiesa' : 'strada';
     zoomCamera(this);
     musica('menu');
     this.n = (d?.giocatori ?? loadSave().giocatori) === 2 ? 2 : 1;
@@ -120,6 +123,6 @@ export class SelectScene extends Phaser.Scene {
     if (this.n === 2 && id === this.scelto[0]) return; // stesso personaggio del primo
     const eroi = this.n === 2 ? [this.scelto[0], id] : [id];
     writeSave({ charId: eroi[0], charId2: eroi[1] ?? null, diff: DIFFICOLTA[this.diffIdx].id, giocatori: this.n });
-    this.scene.start('Game', { fase: 'strada', stato: null, eroi });
+    this.scene.start('Game', { fase: this.fase, stato: null, eroi });
   }
 }
