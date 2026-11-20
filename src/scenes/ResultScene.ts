@@ -38,7 +38,11 @@ export class ResultScene extends Phaser.Scene {
         if (!e) return '';
         const chi = due ? `${i + 1}P ` : '';
         if (!e.ok) return `${chi}${e.messaggio ?? ''}`;
-        return `${chi}${e.record ? 'NUOVO RECORD PERSONALE! ' : ''}${e.posizione}° IN CLASSIFICA GENERALE`;
+        // in classifica conta il miglior punteggio di ogni nickname: una partita piu' bassa del record viene
+        // salvata ma non cambia la riga in classifica, quindi lo si dice chiaramente
+        if (due) return e.record ? `${chi}RECORD! ${e.posizione}° IN CLASSIFICA` : `${chi}NON ENTRA IN CLASSIFICA`;
+        return e.record ? `NUOVO RECORD PERSONALE! ${e.posizione}° IN CLASSIFICA GENERALE`
+          : `NON ENTRA IN CLASSIFICA: IL TUO RECORD E' PIU' ALTO`;
       }).filter((t) => t);
       esito.setText(righe.join('   ') || ' ').setColor(es.some((e) => e && e.ok) ? '#80ff80' : '#ffb060').setOrigin(0.5);
       const gen = await classifica(modo, 6);
