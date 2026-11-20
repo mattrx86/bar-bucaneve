@@ -3,6 +3,7 @@ import { VIEW_W, VIEW_H, GROUND_Y, HEROES } from '../content/defs';
 import { Controls } from '../core/controls';
 import { unlockAudio, sfx, preparaVoci, musica, setFaseAudio, audioAttivo } from '../core/audio';
 import { leaderboard, loadSave, writeSave } from '../core/save';
+import { classifica, nickSalvato, chiediNickname } from '../core/classifica';
 import { touch } from '../core/touch';
 import { setPose } from '../entities';
 import { txt, zoomCamera, PixelText } from '../core/ui';
@@ -18,6 +19,8 @@ export class TitleScene extends Phaser.Scene {
   private giocatoriChiesa = 1;
   /** Schermata "PREMI UN TASTO": serve al browser per accendere l'audio (e quindi la musica del menu). */
   private inAttesa = false;
+  /** finestra del nickname aperta */
+  private attesaNick = false;
   private menuOgg: Phaser.GameObjects.GameObject[] = [];
   private voci: PixelText[] = [];
   private aiuto: PixelText[] = [];
@@ -59,11 +62,25 @@ export class TitleScene extends Phaser.Scene {
     this.tweens.add({ targets: this.voci, alpha: 0.55, duration: 520, yoyo: true, repeat: -1 });
     this.aiuto = [0, 1].map((i) => txt(this, VIEW_W / 2, VIEW_H - 18 + i * 9, '', 7, i ? '#60d8ff' : '#d0d0e0', 2).setOrigin(0.5));
     this.mostraModo();
-    leaderboard.top(3).then((top) => {
-      if (!top.length) return;
-      txt(this, VIEW_W - 6, 76, 'RECORD', 8, '#ffe066', 2).setOrigin(1, 0);
+    // i primi 3 della classifica generale (se il server non risponde, quelli di questo dispositivo)
+    void classifica('completo', 3).then(async (gen) => {
+      const top = gen ? gen.map((r) => ({ nome: r.nick, punti: r.punti })) : (await leaderboard.top(3)).map((r) => ({ nome: r.nome, punti: r.punti }));
+      if (!top.length || !this.scene.isActive()) return;
+      txt(this, VIEW_W - 6, 76, gen ? 'CLASSIFICA' : 'RECORD', 8, '#ffe066', 2).setOrigin(1, 0);
       top.forEach((r, i) => txt(this, VIEW_W - 6, 86 + i * 9, `${r.nome} ${r.punti}`, 8, '#ffffff', 2).setOrigin(1, 0));
     });
+    // nickname del giocatore 1 (si cambia con N o toccandolo)
+    const nickTxt = txt(this, 6, 76, '', 8, '#80ff80', 2).setOrigin(0, 0);
+    const aggiornaNick = (): void => { const n = nickSalvato(0); nickTxt.setText(n ? `GIOCATORE: ${n.nick}\nN: CAMBIA NICKNAME` : 'N: SCEGLI NICKNAME'); };
+    aggiornaNick();
+    const cambiaNick = (): void => {
+      if (this.inAttesa || this.attesaNick) return;
+      this.attesaNick = true;
+      void chiediNickname('NUOVO NICKNAME', 0, true).then(() => { aggiornaNick(); this.attesaNick = false; this.ctrl.flush(); });
+    };
+    // area di tocco con dimensioni esplicite (un testo-contenitore senza dimensioni blocca i tocchi del telefono)
+    this.add.zone(4, 74, 120, 20).setOrigin(0).setInteractive({ useHandCursor: true }).on('pointerdown', cambiaNick);
+    this.input.keyboard!.on('keydown-N', cambiaNick);
     this.ctrl = new Controls(this);
     this.time.delayedCall(250, () => { this.pronto = true; });
     this.input.on('pointerdown', (_p: Phaser.Input.Pointer, sopra: unknown[]) => { if (!sopra.length && !this.inAttesa) this.vai(); });
@@ -85,14 +102,14 @@ export class TitleScene extends Phaser.Scene {
       this.input.once('pointerdown', via);
     }
     this.input.keyboard!.on('keydown', (e: KeyboardEvent) => {
-      if (!this.pronto || e.repeat || this.inAttesa) return;
+      if (!this.pronto || e.repeat || this.inAttesa || this.attesaNick) return;
       if (e.code === 'Digit1' || e.code === 'Numpad1') { this.modo = 1; this.vai(); }
       if (e.code === 'Digit2' || e.code === 'Numpad2') { this.modo = 2; this.vai(); }
       if (e.code === 'Digit3' || e.code === 'Numpad3') { this.modo = 3; this.mostraModo(); }
     });
   }
   update(): void {
-    if (!this.pronto || this.inAttesa) { this.ctrl.flush(); return; }
+    if (!this.pronto || this.inAttesa || this.attesaNick) { this.ctrl.flush(); return; }
     const s = this.ctrl.leggi();
     if ((s.su || s.giu) && this.time.now - this.ultimo > 180) { this.ultimo = this.time.now; this.modo = ((this.modo - 1 + (s.giu ? 1 : 2)) % 3) + 1; sfx('menu'); this.mostraModo(); }
     // sulla voce "solo ultimo livello" sinistra/destra sceglie 1 o 2 giocatori
@@ -120,7 +137,7 @@ export class TitleScene extends Phaser.Scene {
     }
   }
   private vai(): void {
-    if (!this.pronto || this.inAttesa) return;
+    if (!this.pronto || this.inAttesa || this.attesaNick) return;
     this.pronto = false;
     unlockAudio(); preparaVoci(); sfx('conferma');
     const chiesa = this.modo === 3;

@@ -3,6 +3,7 @@ import { VIEW_W, VIEW_H, HEROES, DIFFICOLTA } from '../content/defs';
 import { Controls } from '../core/controls';
 import { sfx, musica } from '../core/audio';
 import { loadSave, writeSave } from '../core/save';
+import { nickSalvato, chiediNickname } from '../core/classifica';
 import { setPose } from '../entities';
 import { txt, zoomCamera, PixelText } from '../core/ui';
 
@@ -21,6 +22,8 @@ export class SelectScene extends Phaser.Scene {
   private titolo!: PixelText;
   /** 1 o 2 giocatori; `turno` = chi sta scegliendo (0 = primo, 1 = secondo) */
   private n = 1;
+  /** in attesa del nickname (finestra aperta): i comandi del menu sono fermi */
+  private attesaNick = false;
   /** da dove si parte: la strada (partita normale) o direttamente la chiesa (HOLY SLUG) */
   private fase: 'strada' | 'chiesa' = 'strada';
   private turno = 0;
@@ -62,6 +65,7 @@ export class SelectScene extends Phaser.Scene {
   }
 
   update(): void {
+    if (this.attesaNick) { this.ctrl.flush(); return; }
     const s = this.ctrl.leggi();
     if (s.sx) this.muovi(-1);
     if (s.dx) this.muovi(1);
@@ -123,6 +127,20 @@ export class SelectScene extends Phaser.Scene {
     if (this.n === 2 && id === this.scelto[0]) return; // stesso personaggio del primo
     const eroi = this.n === 2 ? [this.scelto[0], id] : [id];
     writeSave({ charId: eroi[0], charId2: eroi[1] ?? null, diff: DIFFICOLTA[this.diffIdx].id, giocatori: this.n });
-    this.scene.start('Game', { fase: this.fase, stato: null, eroi });
+    // prima partita su questo dispositivo: si sceglie il nickname della classifica generale
+    this.attesaNick = true;
+    void this.assicuraNick(eroi.length).then((ok) => {
+      this.attesaNick = false; this.ctrl.flush();
+      if (ok) this.scene.start('Game', { fase: this.fase, stato: null, eroi });
+    });
+  }
+  private async assicuraNick(n: number): Promise<boolean> {
+    for (let i = 0; i < n; i++) {
+      const slot = i ? 1 : 0;
+      if (nickSalvato(slot)) continue;
+      const v = await chiediNickname(n > 1 ? `GIOCATORE ${i + 1}: IL TUO NICKNAME` : 'IL TUO NICKNAME', slot, true);
+      if (!v) return false;
+    }
+    return true;
   }
 }

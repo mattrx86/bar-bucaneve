@@ -7,6 +7,8 @@ with sync_playwright() as p:
     b = p.chromium.launch(executable_path='/usr/bin/google-chrome', args=['--use-gl=angle','--use-angle=swiftshader','--enable-unsafe-swiftshader'])
     ctx = b.new_context(viewport={'width':844,'height':390}, has_touch=True, is_mobile=True, device_scale_factor=2)
     pg = ctx.new_page(); errs=[]
+    pg.add_init_script("window.__API_CLASSIFICA = window.__API_CLASSIFICA || 'http://127.0.0.1/api/'")   # server di prova (tests/LEGGIMI)
+    pg.add_init_script("if(!localStorage.getItem('bar-bucaneve-save'))localStorage.setItem('bar-bucaneve-save',JSON.stringify({v:1,charId:null,muted:false,record:[],nick:'TEST1',token:'',nick2:'TEST2',token2:''}))")   # nickname gia' scelti (niente finestra)
     pg.on('console', lambda m: errs.append(m.text) if m.type=='error' else None)
     pg.on('pageerror', lambda e: errs.append(str(e)))
     pg.goto('file://'+os.path.abspath(HTML)); pg.wait_for_timeout(2500)

@@ -18,6 +18,7 @@ bad = 0
 with sync_playwright() as p:
     b = p.chromium.launch(executable_path='/usr/bin/google-chrome', args=['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'])
     pg = b.new_page(viewport={'width': 1152, 'height': 648}); errs = []
+    pg.add_init_script("window.__API_CLASSIFICA = window.__API_CLASSIFICA || 'http://127.0.0.1/api/'")   # server di prova (tests/LEGGIMI)
     pg.on('pageerror', lambda e: errs.append(str(e)))
     pg.goto('file://' + os.path.abspath('dist/index.html')); pg.wait_for_timeout(2500)
     pg.keyboard.press('Enter'); pg.wait_for_timeout(600); pg.keyboard.press('Enter'); pg.wait_for_timeout(1500)

@@ -18,6 +18,7 @@ def esito(cond, msg):
 with sync_playwright() as p:
     b = p.chromium.launch(executable_path='/usr/bin/google-chrome', args=['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--autoplay-policy=no-user-gesture-required'])
     pg = b.new_page(viewport={'width': 1152, 'height': 648}); errs = []
+    pg.add_init_script("window.__API_CLASSIFICA = window.__API_CLASSIFICA || 'http://127.0.0.1/api/'")   # server di prova (tests/LEGGIMI)
     pg.on('pageerror', lambda e: errs.append(str(e)))
     pg.add_init_script("window.__audioLog = []")
     pg.goto('file://' + os.path.abspath(HTML)); pg.wait_for_timeout(2500)

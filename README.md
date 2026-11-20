@@ -1,4 +1,4 @@
-# BUCA SLUG - prototipo 1.6
+# BUCA SLUG - prototipo 1.7
 
 Run'n'gun stile Metal Slug. Strada di Ponte Arche (gelatai e ubriachi) -> Giova davanti al Bar Bucaneve -> Ettore in cantina.
 
@@ -26,6 +26,16 @@ Scaricate `bar-bucaneve.html` e apritelo con doppio clic (Chrome, Edge o Firefox
 - `src/entities.ts`: giocatore, nemici, Giova, Ettore.
 - `src/scenes/`: Boot, Title, Select, Game (fasi strada e cantina), Result.
 - `richieste/`: **richieste di modifica degli amici** (istruzioni + materiali). Le eseguo solo quando me lo dite; vedi `richieste/LEGGIMI.md`.
+
+## Novità 1.7 — classifica generale e gioco online
+- **Si gioca dal browser**: https://mattrx86.github.io/bar-bucaneve/ (GitHub Pages, si aggiorna da solo a ogni versione).
+- **Classifica generale** condivisa da tutti:
+  - alla prima partita si sceglie un nickname, che resta nel browser; nel menu si cambia con **N**;
+  - a fine partita il punteggio va sul server, e la schermata finale mostra posizione, record personale e la top 6;
+  - nel titolo compaiono i primi 3;
+  - due classifiche separate: partita completa e "solo ultimo livello".
+- **Il server della classifica** gira sul NAS. Le istruzioni sono in `server/LEGGIMI.md`: container PHP isolato, database MariaDB dedicato, raggiungibile solo in HTTPS dal reverse proxy.
+- Se il server non risponde, il gioco funziona lo stesso e usa la classifica locale.
 
 ## Novità 1.6
 - **Schermata "PREMI UN TASTO"** prima del menu. I browser non lasciano partire l'audio finché non si preme un tasto o si tocca la pagina (è una regola dei browser, nessun sito la può aggirare). Il primo tasto fa partire subito la musica del menu e mostra le voci. L'audio viene preparato già all'apertura della pagina, così non c'è ritardo.

@@ -1,0 +1,46 @@
+# BUCA SLUG - classifica generale sul NAS (Container Manager -> Progetto, oppure docker compose da SSH).
+# Cartella sul NAS: /volume1/docker/bucaslug  (questo file, Dockerfile, i due .conf/.ini, lib/, www/, .env)
+services:
+  bucaslug:
+    build: .
+    image: bucaslug-api:1
+    container_name: bucaslug-api
+    restart: unless-stopped
+    # Solo sul NAS stesso (127.0.0.1): da internet ci si arriva SOLO passando dal reverse proxy di DSM
+    # con HTTPS. Dalla LAN la porta non e' raggiungibile direttamente.
+    ports:
+      - "127.0.0.1:8896:80"
+    env_file: .env
+    # il MariaDB 10 di Synology gira sul NAS, fuori da Docker: lo si raggiunge con questo nome
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ./www:/var/www/html:ro
+      - ./lib:/var/www/lib:ro
+    # indurimento: file system in sola lettura, privilegi minimi, risorse limitate
+    read_only: true
+    tmpfs:
+      - /tmp:size=8m
+      - /var/run/apache2:size=1m
+      - /var/lock/apache2:size=1m
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_BIND_SERVICE
+      - SETUID
+      - SETGID
+    mem_limit: 128m
+    pids_limit: 64
+    logging:
+      driver: json-file
+      options: { max-size: "5m", max-file: "2" }
+    labels:
+      # immagine costruita in locale: Watchtower non deve toccarla
+      - com.centurylinklabs.watchtower.enable=false
+    healthcheck:
+      test: ["CMD", "php", "-d", "allow_url_fopen=1", "-r", "exit(@file_get_contents('http://127.0.0.1/api/classifica.php?n=1') === false ? 1 : 0);"]
+      interval: 2m
+      timeout: 10s
+      retries: 3

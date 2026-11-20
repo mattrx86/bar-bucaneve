@@ -16,8 +16,9 @@ ok = True
 with sync_playwright() as p:
     b = p.chromium.launch(executable_path='/usr/bin/google-chrome', args=['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--autoplay-policy=no-user-gesture-required'])
     pg = b.new_page(viewport={'width': 1152, 'height': 648}); errs = []
+    pg.add_init_script("window.__API_CLASSIFICA = window.__API_CLASSIFICA || 'http://127.0.0.1/api/'")   # server di prova (tests/LEGGIMI)
     pg.on('pageerror', lambda e: errs.append(str(e)))
-    pg.add_init_script(SPIA)
+    pg.add_init_script(SPIA); pg.add_init_script("window.__audioLog = []")
     pg.goto('file://' + os.path.abspath(HTML)); pg.wait_for_timeout(2500)
     pg.keyboard.press('Enter'); pg.wait_for_timeout(400)   # sblocca l'audio
     pg.evaluate("window.__game.scene.getScene('Title').scene.start('Game',{fase:'chiesa',stato:{tempo:0,crediti:3,checkpoint:'altare',g:[{vite:3,punti:0,arma:'pistola',munizioni:-1,bombe:10}]},eroi:['marco']})")
@@ -54,15 +55,18 @@ with sync_playwright() as p:
         print('   partenza:', prs[0] if prs else None, ' ultimo:', prs[-1] if prs else None)
         pg.wait_for_timeout(600)
     # morte: la voce di morte (circa 4 s) deve partire una volta sola
-    pg.evaluate("window.__suoni = []")
+    pg.evaluate("window.__suoni = []; window.__audioLog.length = 0")
     pg.evaluate(f"(()=>{{const bo={G}.boss; bo.danno(bo.vita + 10, 0);}})()")
     pg.wait_for_timeout(5000)
+    print('stato boss dopo il colpo:', pg.evaluate(f"(()=>{{const b={G}.boss; return {{morto:b.morto, vita:b.vita, mortoT:b.mortoT, st:b.st, voceMorte:b.voceMorte}}}})()"))
+    print('voci dopo la morte:', pg.evaluate("(window.__audioLog||[]).map(e=>e.tipo+':'+e.nome)"))
     suoni = pg.evaluate("window.__suoni")
-    lunghi = [s for s in suoni if 3.0 <= s['d'] <= 5.0]
+    lunghi = [v for v in pg.evaluate("(window.__audioLog||[]).map(e=>e.nome)") if v == 'griso_morte']   # registro del gioco
     print('suoni partiti dopo la morte (durate s):', [s['d'] for s in suoni])
     print('voce di morte partita', len(lunghi), 'volta/e')
     ok &= len(lunghi) == 1
     pg.screenshot(path=f'{OUT}/zz_morte.png')
     print('ERRORI', errs)
+    print('ok', ok, 'errs', errs)
     print('ESITO', 'OK' if ok and not errs else 'ERRORE')
     b.close()

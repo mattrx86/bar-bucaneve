@@ -3,3 +3,6 @@ dist/
 *.log
 __pycache__/
 anteprime/
+
+# classifica sul NAS: le password restano solo sul NAS
+server/.env

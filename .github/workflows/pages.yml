@@ -1,0 +1,38 @@
+# Pubblica il gioco su GitHub Pages: https://mattrx86.github.io/bar-bucaneve/
+# Parte da solo a ogni aggiornamento di bar-bucaneve.html su main (o a mano da "Actions" -> "Run workflow").
+# Pubblica SOLO il gioco compilato (come index.html), non il resto del repository.
+name: Pubblica il gioco
+on:
+  push:
+    branches: [main]
+    paths: [bar-bucaneve.html]
+  workflow_dispatch:
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+concurrency:
+  group: pages
+  cancel-in-progress: true
+jobs:
+  pubblica:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: bar-bucaneve.html
+          sparse-checkout-cone-mode: false
+      - name: Prepara la pagina
+        run: |
+          mkdir _site
+          cp bar-bucaneve.html _site/index.html
+          touch _site/.nojekyll
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+      - id: deploy
+        uses: actions/deploy-pages@v4

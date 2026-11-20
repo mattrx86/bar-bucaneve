@@ -31,7 +31,8 @@ import type { Risultato } from './ResultScene';
 
 /** Stato di un singolo giocatore: punti, vite e arma sono suoi (ogni giocatore ha le proprie vite). */
 export interface PStato { punti: number; vite: number; arma: string; munizioni: number; bombe: number }
-export interface Stato { tempo: number; crediti: number; checkpoint?: 'meta' | 'giova' | 'navata' | 'altare'; g: PStato[] }
+export interface Stato { tempo: number; crediti: number; checkpoint?: 'meta' | 'giova' | 'navata' | 'altare'; g: PStato[];
+  /** 'ultimo' = partita iniziata direttamente dall'ultimo livello (classifica a parte) */ modo?: 'completo' | 'ultimo' }
 export type Fase = 'strada' | 'cantina' | 'chiesa';
 /** `eroi`: gli id dei personaggi scelti, uno per giocatore (1 o 2). */
 interface Dati { fase: Fase; stato: Stato | null; eroi?: string[] }
@@ -112,7 +113,7 @@ export class GameScene extends Phaser.Scene implements World {
     const ids = d?.eroi?.length ? d.eroi : [loadSave().charId];
     this.eroi = ids.slice(0, 2).map((id) => getHero(id));
     this.hero = this.eroi[0];
-    this.st = d?.stato ? { ...d.stato, g: d.stato.g.map((q) => ({ ...q })) } : { tempo: 0, crediti: 0, g: this.eroi.map(() => nuovoPStato(this.diff.vite)) };
+    this.st = d?.stato ? { ...d.stato, g: d.stato.g.map((q) => ({ ...q })) } : { tempo: 0, crediti: 0, g: this.eroi.map(() => nuovoPStato(this.diff.vite)), modo: (d?.fase === 'chiesa' ? 'ultimo' : 'completo') };
     this.congelato = 0; this.stopCd = 0; this.combo = 0; this.comboT = 0; this.colpitoNelBoss = false; this.props = []; this.premi = []; this.continua = null;
     this.nemici = []; this.proiettili = []; this.casse = []; this.boss = null; this.arena = null;
     this.boss2 = null; this.ambiente = null; this.donArrivato = false; this.tempoInizio = this.st.tempo;
@@ -796,7 +797,10 @@ export class GameScene extends Phaser.Scene implements World {
     this.finito = true;
     const r: Risultato = {
       vittoria, tempo: this.st.tempo, titolo: this.fase === 'chiesa' ? 'HOLY SLUG COMPIUTA!' : undefined,
-      giocatori: this.eroi.map((h, i) => ({ nome: h.nome, punti: this.st.g[i].punti })),
+      giocatori: this.eroi.map((h, i) => ({ nome: h.nome, punti: this.st.g[i].punti, eroe: h.id })),
+      modo: this.st.modo ?? 'completo',
+      // fin dove si e' arrivati (per la classifica)
+      livello: vittoria && this.fase === 'chiesa' ? 'finito' : this.fase === 'strada' ? (this.st.checkpoint === 'giova' ? 'bucaneve' : 'strada') : this.fase,
     };
     this.cameras.main.fadeOut(500);
     this.cameras.main.once('camerafadeoutcomplete', () => this.scene.start('Result', r));
