@@ -139,7 +139,7 @@ export class GameScene extends Phaser.Scene implements World {
       const cx = BG.street.barX + BG.street.barW / 2;
       this.add.rectangle(cx, 101, 104, 15, 0x2a1408).setStrokeStyle(1, 0xd8a040).setDepth(2);
       txt(this, cx, 101, 'BAR BUCANEVE', 9, '#ffe066', 2).setOrigin(0.5).setDepth(3);
-      for (const p of PICKUPS) this.casse.push({ s: img(this, p.x, GROUND_Y, `cassa_${p.arma}`, 'cassa').setOrigin(0.5, 1).setDepth(40), arma: p.arma });
+      for (const p of PICKUPS) this.casse.push({ s: img(this, p.x, GROUND_Y + 1, FX[`cassa_ch_${p.arma}`] ? `cassa_ch_${p.arma}` : `cassa_${p.arma}`, 'cassa').setOrigin(0.5, 1).setDepth(40), arma: p.arma });
     }
 
     for (const pp of this.fase === 'strada' ? PROPS_STRADA : this.fase === 'cantina' ? PROPS_CANTINA : []) {
@@ -189,7 +189,6 @@ export class GameScene extends Phaser.Scene implements World {
     } else if (this.fase === 'strada') {
       musica('strada');
       this.time.delayedCall(600, () => parla([this.hero.id, 'eroe'], 'via'));
-      if (!this.st.checkpoint) this.time.delayedCall(2600, () => voce('barista_femmina', 20));
       this.annuncio('MISSIONE 1', 'ARRIVA AL BAR BUCANEVE');
     } else {
       musica('battaglia-ettore');   // la musica di Ettore parte appena si entra in cantina
@@ -394,14 +393,15 @@ export class GameScene extends Phaser.Scene implements World {
     if (this.onda < WAVES.length && xg > WAVES[this.onda].x) {
       if (this.onda === CHECKPOINT_ONDA && this.st.checkpoint !== 'giova') { this.st.checkpoint = 'meta'; this.annuncio('CHECKPOINT!', 'SE PERDETE RIPARTITE DA QUI'); }
       const w = WAVES[this.onda++];
-      // quando entrano i gelatai si sente il gelataio (una volta per ondata, non piu' di una ogni 9 s)
-      const primoGelataio = w.nemici.filter((n) => ENEMIES[n.tipo].sheets.some((k) => k.includes('gelat'))).map((n) => n.ritardo).sort((a, b) => a - b)[0];
-      if (primoGelataio !== undefined) this.time.delayedCall(primoGelataio * 1000 + 450, () => voce('gelataio_pepite', 9, 0.9));
+
       this.bloccoDx = this.camX + VIEW_W + 40;
       for (const n of w.nemici) {
         this.time.delayedCall(n.ritardo * 1000, () => {
           const x = n.xFisso ?? (n.lato === 'dx' ? this.camX + VIEW_W + 24 : this.camX - 24);
           const e = this.spawn(n.tipo, x, (w.fretta ?? 1) * this.aggressivita());
+          // strada: quando compare una gelataia parla la barista, quando compare un gelataio il gelataio
+          if (e.chi === 'gelataia') this.time.delayedCall(450, () => voce('barista_femmina', 8));
+          else if (e.chi === 'gelataio') this.time.delayedCall(450, () => voce('gelataio_pepite', 9, 0.9));
           // chi è sul balcone non blocca l'avanzata: si può ignorare o abbattere sparando in alto
           if (n.tipo !== 'balcone') this.ondaViva.push(e);
         });
@@ -429,7 +429,6 @@ export class GameScene extends Phaser.Scene implements World {
       this.arena = { x: arenaX }; this.giovaArrivato = true; this.st.checkpoint = 'giova';
       // la musica della strada continua anche con Giovanni; il suo "sottofondo" suona sopra, a intervalli
       setFaseAudio('bucaneve');
-      voce('barista_femmina', 20);
       this.time.delayedCall(700, () => {
         this.boss = new Giova(this, arenaX + VIEW_W + 40);
         this.scalaBoss(this.boss, 1.5);
@@ -694,7 +693,7 @@ export class GameScene extends Phaser.Scene implements World {
         if (c.arma === 'vita') { p.vita = Math.min(p.vitaMax, p.vita + Math.round(p.vitaMax * 0.5)); this.testo(p.x, p.y - 62, 'VITA!', '#ff8080'); }
         else if (c.arma === 'bombe') { p.bombe += 5; this.testo(p.x, p.y - 62, 'BOMBE +5!', '#ffe066'); }
         else { p.prendiArma(c.arma); this.testo(p.x, p.y - 62, WEAPONS[c.arma].nome + '!', '#80ff80'); }
-        if (this.fase === 'chiesa' && FX.cassa_ch_crepata) this.apriCassaGotica(c.s.x); else this.apriCassa(c.s.x);
+        if (FX[`cassa_ch_${c.arma}`]) this.apriCassaGotica(c.s.x, c.arma); else this.apriCassa(c.s.x);
         c.s.destroy();
       }
     }
@@ -711,10 +710,22 @@ export class GameScene extends Phaser.Scene implements World {
       if (i === 6) this.tweens.add({ targets: s, alpha: 0, delay: 400, duration: 300, onComplete: () => s.destroy() });
     } });
   }
-  /** Cassa gotica che si apre: crepata -> aperta (polvere) -> luce, poi svanisce. */
-  private apriCassaGotica(x: number): void {
-    const s = img(this, x, GROUND_Y + 1, 'cassa_ch_crepata', 'cassa').setOrigin(0.5, 1).setDepth(41);
-    ['cassa_ch_aperta', 'cassa_ch_luce'].forEach((k, i) => this.time.delayedCall(90 * (i + 1), () => { if (s.active) { const t = fxTex(k, 'cassa'); s.setTexture(t.key).setScale(t.s); } }));
+  /** Cassa che si apre (casse_gotiche.png). La cassa della vita ha i suoi fotogrammi: crepata -> aperta
+   *  -> luce. Le altre saltellano e dal coperchio escono i raggi di luce dello stesso foglio. */
+  private apriCassaGotica(x: number, arma: string): void {
+    const y = GROUND_Y + 1;
+    if (arma === 'vita' && FX.cassa_ch_crepata) {
+      const s = img(this, x, y, 'cassa_ch_crepata', 'cassa').setOrigin(0.5, 1).setDepth(41);
+      ['cassa_ch_aperta', 'cassa_ch_luce'].forEach((k, i) => this.time.delayedCall(90 * (i + 1), () => { if (s.active) { const t = fxTex(k, 'cassa'); s.setTexture(t.key).setScale(t.s); } }));
+      this.tweens.add({ targets: s, alpha: 0, delay: 650, duration: 350, onComplete: () => s.destroy() });
+      return;
+    }
+    const s = img(this, x, y, `cassa_ch_${arma}`, 'cassa').setOrigin(0.5, 1).setDepth(41);
+    this.tweens.add({ targets: s, y: y - 4, duration: 90, yoyo: true, ease: 'Quad.out' });
+    if (FX.cassa_ch_raggi) {
+      const r = img(this, x, y - s.displayHeight + 3, 'cassa_ch_raggi', 'cassa').setOrigin(0.5, 1).setDepth(42).setBlendMode(Phaser.BlendModes.ADD).setAlpha(0);
+      this.tweens.add({ targets: r, alpha: 1, scaleY: r.scaleY * 1.3, duration: 160, delay: 120, yoyo: true, hold: 260, onComplete: () => r.destroy() });
+    }
     this.tweens.add({ targets: s, alpha: 0, delay: 650, duration: 350, onComplete: () => s.destroy() });
   }
   /** Sbuffo di polvere (morti, atterraggi pesanti). */

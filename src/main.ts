@@ -37,6 +37,11 @@ function adatta(): void {
 iniziaTouch();
 // Su telefono l'audio si sblocca solo dopo un gesto: il primo tocco (rilascio) lo attiva.
 window.addEventListener('pointerup', () => unlockAudio());
+// Si prepara l'audio subito: i browser lo tengono "sospeso" fino al primo tasto, clic o tocco sulla pagina
+// (regola dei browser, non aggirabile), ma cosi' la musica del menu parte nell'istante stesso del primo tasto.
+// Se il browser permette l'audio senza gesto (sito gia' usato spesso), parte direttamente.
+unlockAudio();
+for (const ev of ['keydown', 'pointerdown', 'touchstart']) window.addEventListener(ev, () => unlockAudio(), { capture: true });
 window.addEventListener('resize', adatta);
 document.addEventListener('fullscreenchange', () => setTimeout(adatta, 50));
 game.events.once('ready', adatta);

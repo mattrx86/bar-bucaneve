@@ -1,4 +1,4 @@
-# BUCA SLUG - prototipo 1.5
+# BUCA SLUG - prototipo 1.6
 
 Run'n'gun stile Metal Slug. Strada di Ponte Arche (gelatai e ubriachi) -> Giova davanti al Bar Bucaneve -> Ettore in cantina.
 
@@ -26,6 +26,16 @@ Scaricate `bar-bucaneve.html` e apritelo con doppio clic (Chrome, Edge o Firefox
 - `src/entities.ts`: giocatore, nemici, Giova, Ettore.
 - `src/scenes/`: Boot, Title, Select, Game (fasi strada e cantina), Result.
 - `richieste/`: **richieste di modifica degli amici** (istruzioni + materiali). Le eseguo solo quando me lo dite; vedi `richieste/LEGGIMI.md`.
+
+## Novità 1.6
+- **Schermata "PREMI UN TASTO"** prima del menu. I browser non lasciano partire l'audio finché non si preme un tasto o si tocca la pagina (è una regola dei browser, nessun sito la può aggirare). Il primo tasto fa partire subito la musica del menu e mostra le voci. L'audio viene preparato già all'apertura della pagina, così non c'è ritardo.
+- Il menu ora dice **SOLO ULTIMO LIVELLO** (prima "solo la chiesa"); oppure tasto 3.
+- **Casse nuove** (`progetto-chiesa/oggetti/casse_gotiche.png`) in chiesa **e in strada**:
+  - quali sono: munizioni = fucile, mitragliatrice, granate = +5 bombe, dorata con lo stendardo = lanciarazzi, rossa con la croce = vita;
+  - come si aprono: la cassa rossa si crepa, si apre e fa luce con i suoi fotogrammi; le altre fanno un saltello ed escono i raggi di luce dello stesso foglio.
+- **Niente "neve" in chiesa**: era il pulviscolo bianco che scendeva, tolto.
+- **Candele più vive**: alone più grande e più caldo, cuore luminoso, tremolio più marcato e ogni tanto un calo improvviso, come una fiamma vera.
+- **Strada**: la voce `Barista femmina` parte solo quando compare una gelataia, `gelataio_pepite` solo quando compare un gelataio.
 
 ## Novità 1.5
 - **Logo BUCA SLUG** nuovo nella schermata del titolo (`grafica/titolo/logo.png`).

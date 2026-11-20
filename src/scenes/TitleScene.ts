@@ -1,7 +1,7 @@
 import Phaser from 'phaser';
 import { VIEW_W, VIEW_H, GROUND_Y, HEROES } from '../content/defs';
 import { Controls } from '../core/controls';
-import { unlockAudio, sfx, preparaVoci, musica, setFaseAudio } from '../core/audio';
+import { unlockAudio, sfx, preparaVoci, musica, setFaseAudio, audioAttivo } from '../core/audio';
 import { leaderboard, loadSave, writeSave } from '../core/save';
 import { touch } from '../core/touch';
 import { setPose } from '../entities';
@@ -16,6 +16,9 @@ export class TitleScene extends Phaser.Scene {
   /** 1 = un giocatore, 2 = due giocatori, 3 = solo la chiesa (HOLY SLUG) con `giocatoriChiesa` giocatori */
   private modo = 1;
   private giocatoriChiesa = 1;
+  /** Schermata "PREMI UN TASTO": serve al browser per accendere l'audio (e quindi la musica del menu). */
+  private inAttesa = false;
+  private menuOgg: Phaser.GameObjects.GameObject[] = [];
   private voci: PixelText[] = [];
   private aiuto: PixelText[] = [];
   private ultimo = -1000;
@@ -35,7 +38,7 @@ export class TitleScene extends Phaser.Scene {
     }
     // velo scuro dietro ai testi, cosi' si leggono sopra l'immagine
     this.add.rectangle(0, 0, VIEW_W, 0, 0x000000, 0).setOrigin(0);
-    this.add.rectangle(VIEW_W / 2, 108, 176, 48, 0x000000, 0.5);
+    const fondoMenu = this.add.rectangle(VIEW_W / 2, 108, 186, 48, 0x000000, 0.5);
     this.add.rectangle(0, VIEW_H - 26, VIEW_W, 26, 0x000000, 0.5).setOrigin(0);
 
     // logo BUCA SLUG (tools/logo.py); senza il file resta la scritta
@@ -48,9 +51,9 @@ export class TitleScene extends Phaser.Scene {
     this.modo = loadSave().giocatori === 2 ? 2 : 1;
     this.giocatoriChiesa = this.modo;
     // terza voce: si entra direttamente nella chiesa (HOLY SLUG), saltando strada, Giovanni ed Ettore
-    this.voci = ['1 GIOCATORE', '2 GIOCATORI', 'SOLO LA CHIESA'].map((t, i) => txt(this, VIEW_W / 2, 94 + i * 14, t, i < 2 ? 12 : 10, i < 2 ? '#ffffff' : '#ffb0e0').setOrigin(0.5));
+    this.voci = ['1 GIOCATORE', '2 GIOCATORI', 'SOLO ULTIMO LIVELLO'].map((t, i) => txt(this, VIEW_W / 2, 94 + i * 14, t, i < 2 ? 12 : 10, i < 2 ? '#ffffff' : '#ffb0e0').setOrigin(0.5));
     this.voci.forEach((_, i) => {
-      const z = this.add.zone(VIEW_W / 2, 94 + i * 14 + 5, 176, 14).setInteractive();
+      const z = this.add.zone(VIEW_W / 2, 94 + i * 14 + 5, 186, 14).setInteractive();
       z.on('pointerdown', () => { this.modo = i + 1; this.vai(); });
     });
     this.tweens.add({ targets: this.voci, alpha: 0.55, duration: 520, yoyo: true, repeat: -1 });
@@ -63,32 +66,47 @@ export class TitleScene extends Phaser.Scene {
     });
     this.ctrl = new Controls(this);
     this.time.delayedCall(250, () => { this.pronto = true; });
-    this.input.on('pointerdown', (_p: Phaser.Input.Pointer, sopra: unknown[]) => { if (!sopra.length) this.vai(); });
-    const sblocca = (): void => { unlockAudio(); musica('menu'); };
-    this.input.once('pointerdown', sblocca); this.input.keyboard!.once('keydown', sblocca);
+    this.input.on('pointerdown', (_p: Phaser.Input.Pointer, sopra: unknown[]) => { if (!sopra.length && !this.inAttesa) this.vai(); });
+    // Prima schermata: se il browser non ha ancora acceso l'audio, "PREMI UN TASTO" (come in sala giochi).
+    // Il primo tasto o tocco accende l'audio, fa partire la musica e mostra il menu.
+    this.menuOgg = [fondoMenu, ...this.voci, ...this.aiuto];
+    this.inAttesa = !audioAttivo();
+    if (this.inAttesa) {
+      this.menuOgg.forEach((o) => (o as unknown as { setVisible(v: boolean): void }).setVisible(false));
+      const premi = txt(this, VIEW_W / 2, 108, touch.attivo ? 'TOCCA PER INIZIARE' : 'PREMI UN TASTO', 13, '#ffe066', 4).setOrigin(0.5);
+      this.tweens.add({ targets: premi, alpha: 0.2, duration: 450, yoyo: true, repeat: -1 });
+      const via = (): void => {
+        if (!this.inAttesa) return;
+        this.inAttesa = false; unlockAudio(); musica('menu'); sfx('conferma');
+        premi.destroy(); this.menuOgg.forEach((o) => (o as unknown as { setVisible(v: boolean): void }).setVisible(true));
+        this.pronto = false; this.time.delayedCall(250, () => { this.pronto = true; });
+      };
+      this.input.keyboard!.once('keydown', via);
+      this.input.once('pointerdown', via);
+    }
     this.input.keyboard!.on('keydown', (e: KeyboardEvent) => {
-      if (!this.pronto || e.repeat) return;
+      if (!this.pronto || e.repeat || this.inAttesa) return;
       if (e.code === 'Digit1' || e.code === 'Numpad1') { this.modo = 1; this.vai(); }
       if (e.code === 'Digit2' || e.code === 'Numpad2') { this.modo = 2; this.vai(); }
       if (e.code === 'Digit3' || e.code === 'Numpad3') { this.modo = 3; this.mostraModo(); }
     });
   }
   update(): void {
-    if (!this.pronto) { this.ctrl.flush(); return; }
+    if (!this.pronto || this.inAttesa) { this.ctrl.flush(); return; }
     const s = this.ctrl.leggi();
     if ((s.su || s.giu) && this.time.now - this.ultimo > 180) { this.ultimo = this.time.now; this.modo = ((this.modo - 1 + (s.giu ? 1 : 2)) % 3) + 1; sfx('menu'); this.mostraModo(); }
-    // sulla voce "solo la chiesa" sinistra/destra sceglie 1 o 2 giocatori
+    // sulla voce "solo ultimo livello" sinistra/destra sceglie 1 o 2 giocatori
     if (this.modo === 3 && (s.sx || s.dx) && this.time.now - this.ultimo > 180) { this.ultimo = this.time.now; this.giocatoriChiesa = this.giocatoriChiesa === 1 ? 2 : 1; sfx('menu'); this.mostraModo(); }
     if (s.confermaTap || s.saltoTap) this.vai();
     this.ctrl.flush();
   }
   /** Evidenzia la voce scelta e mostra i tasti del modo scelto. */
   private mostraModo(): void {
-    const nomi = ['1 GIOCATORE', '2 GIOCATORI', `SOLO LA CHIESA < ${this.giocatoriChiesa}P >`];
+    const nomi = ['1 GIOCATORE', '2 GIOCATORI', `SOLO ULTIMO LIVELLO < ${this.giocatoriChiesa}P >`];
     this.voci.forEach((v, i) => v.setText(`${this.modo === i + 1 ? '> ' : '  '}${nomi[i]}`).setOrigin(0.5));
     if (touch.attivo) { this.aiuto[0].setText('TOCCA PER GIOCARE   COMANDI SULLO SCHERMO'); this.aiuto[1].setText(''); return; }
     if (this.modo === 3) {
-      this.aiuto[0].setText('HOLY SLUG: SI PARTE DAL PORTONE DELLA CHIESA');
+      this.aiuto[0].setText('ULTIMO LIVELLO: SI PARTE DAL PORTONE DELLA CHIESA');
       this.aiuto[1].setText('SINISTRA/DESTRA 1 O 2 GIOCATORI   INVIO CONFERMA');
       this.aiuto[0].setColor('#ffb0e0'); this.aiuto[1].setColor('#a0a8c0');
     } else if (this.modo === 1) {
@@ -102,7 +120,7 @@ export class TitleScene extends Phaser.Scene {
     }
   }
   private vai(): void {
-    if (!this.pronto) return;
+    if (!this.pronto || this.inAttesa) return;
     this.pronto = false;
     unlockAudio(); preparaVoci(); sfx('conferma');
     const chiesa = this.modo === 3;

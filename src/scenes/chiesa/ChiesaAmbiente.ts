@@ -7,7 +7,6 @@
 //   aloni delle candele e del rosone           nel mondo, additivi            profondita'   2
 //   fiamme animate (4 fotogrammi, sfasate)     nel mondo                      profondita'   3
 //   portone d'ingresso (due ante che si aprono)                               profondita'   4
-//   pulviscolo                                 scorre piano                   profondita'  70
 //   primo piano (panche, stendardi)            scorre un po' piu' veloce      profondita'  80
 // I personaggi stanno tra 40 e 60: il primo piano e' solo in basso (sotto i piedi) e in alto.
 // ============================================================================
@@ -27,7 +26,7 @@ export function caricaChiesa(sc: Phaser.Scene): void {
 function textureLuci(sc: Phaser.Scene): void {
   if (!sc.textures.exists('ch_alone')) {
     const g = sc.make.graphics({ x: 0, y: 0 }, false);
-    for (let r = 32; r > 0; r -= 2) { g.fillStyle(0xffffff, 0.05 + 0.05 * (1 - r / 32) ** 2); g.fillCircle(32, 32, r); }
+    for (let r = 32; r > 0; r -= 2) { g.fillStyle(0xffffff, 0.06 + 0.08 * (1 - r / 32) ** 2); g.fillCircle(32, 32, r); }
     g.generateTexture('ch_alone', 64, 64); g.destroy();
   }
   if (!sc.textures.exists('ch_raggio')) {
@@ -39,8 +38,9 @@ function textureLuci(sc: Phaser.Scene): void {
 
 export class ChiesaAmbiente {
   private fiamme: { s: Phaser.GameObjects.Image; fase: number; vel: number }[] = [];
-  private aloni: { s: Phaser.GameObjects.Image; base: number; fase: number }[] = [];
-  private polvere: { s: Phaser.GameObjects.Rectangle; vx: number; vy: number }[] = [];
+  /** Aloni delle candele: `alone` largo e morbido + `cuore` piccolo e caldo. Tremolano verso un valore
+   *  casuale che cambia ogni 60-140 ms (come una fiamma vera), con ogni tanto un calo brusco. */
+  private aloni: { s: Phaser.GameObjects.Image; cuore?: Phaser.GameObjects.Image; base: number; scala: number; k: number; meta: number; prossimo: number; rosone: boolean }[] = [];
   private raggi: Phaser.GameObjects.Image[] = [];
   private rosone: Phaser.GameObjects.Image[] = [];
   private ante: Phaser.GameObjects.Image[] = [];
@@ -57,20 +57,24 @@ export class ChiesaAmbiente {
       this.raggi.push(r);
     }
     CH_BG.navata.parts.forEach((_, i) => sc.add.image(i * 512, 0, `ch_navata_${i}`).setOrigin(0).setScale(1 / d).setDepth(0));
-    // aloni caldi attorno alle candele, freddo-colorati attorno al rosone
+    // aloni caldi attorno alle candele (grandi e marcati), freddo-colorati attorno al rosone
     for (const l of CH_BG.luci) {
-      const col = l.rosone ? 0xc070ff : 0xffb050;
-      const s = sc.add.image(l.x, l.y, 'ch_alone').setDepth(2).setBlendMode(Phaser.BlendModes.ADD).setTint(col).setScale(l.r / 32);
-      const base = l.rosone ? 0.55 : 0.45;
-      s.setAlpha(base);
-      if (l.rosone) this.rosone.push(s);
-      this.aloni.push({ s, base, fase: Math.random() * 10 });
+      if (l.rosone) {
+        const s = sc.add.image(l.x, l.y, 'ch_alone').setDepth(2).setBlendMode(Phaser.BlendModes.ADD).setTint(0xc070ff).setScale(l.r / 32).setAlpha(0.55);
+        this.rosone.push(s);
+        this.aloni.push({ s, base: 0.55, scala: l.r / 32, k: 1, meta: 1, prossimo: 0, rosone: true });
+        continue;
+      }
+      const sc1 = (l.r * 1.7) / 32;
+      const s = sc.add.image(l.x, l.y, 'ch_alone').setDepth(2).setBlendMode(Phaser.BlendModes.ADD).setTint(0xff9a30).setScale(sc1).setAlpha(0.7);
+      const cuore = sc.add.image(l.x, l.y, 'ch_alone').setDepth(2).setBlendMode(Phaser.BlendModes.ADD).setTint(0xffe08a).setScale((l.r * 0.55) / 32).setAlpha(0.9);
+      this.aloni.push({ s, cuore, base: 0.7, scala: sc1, k: 1, meta: 1, prossimo: 0, rosone: false });
     }
     // luce colorata del rosone proiettata sul pavimento dell'arena
     const r = CH_BG.rosone;
     for (const [dx, col] of [[-40, 0xd04050], [0, 0xe0b040], [40, 0x4070e0]] as [number, number][]) {
       const s = sc.add.image(r.x + dx, 150, 'ch_alone').setDepth(2).setBlendMode(Phaser.BlendModes.ADD).setTint(col).setScale(1.6, 0.5).setAlpha(0.35);
-      this.rosone.push(s); this.aloni.push({ s, base: 0.32, fase: Math.random() * 10 });
+      this.rosone.push(s); this.aloni.push({ s, base: 0.32, scala: s.scaleX, k: 1, meta: 1, prossimo: 0, rosone: true });
     }
     // fiamme animate (i 4 fotogrammi della strip), ognuna con il suo tempo
     const ff = FX.fiamma_0;
@@ -84,11 +88,6 @@ export class ChiesaAmbiente {
       const sx = sc.add.image(p.x, p.y, 'fx_porta').setOrigin(0, 0).setDepth(4).setScale(1 / FX.porta.d).setCrop(0, 0, FX.porta.w * FX.porta.d / 2, FX.porta.h * FX.porta.d);
       const dx = sc.add.image(p.x + p.w, p.y, 'fx_porta').setOrigin(1, 0).setDepth(4).setScale(1 / FX.porta.d).setCrop(FX.porta.w * FX.porta.d / 2, 0, FX.porta.w * FX.porta.d / 2, FX.porta.h * FX.porta.d);
       this.ante = [sx, dx];
-    }
-    // pulviscolo nella luce
-    for (let i = 0; i < 46; i++) {
-      const s = sc.add.rectangle(Math.random() * VIEW_W, 20 + Math.random() * 150, 1, 1, 0xfff0d0, 0.25 + Math.random() * 0.35).setScrollFactor(0.2, 0).setDepth(70);
-      this.polvere.push({ s, vx: -3 + Math.random() * 6, vy: 2 + Math.random() * 4 });
     }
     // oggetti di scena (foglio "Elementi pixel art..." in progetto-chiesa/fondali/): solo decorazione,
     // nessuna collisione. "medio" = sul pavimento dietro ai personaggi; "primo" = davanti, in basso e in controluce.
@@ -114,18 +113,17 @@ export class ChiesaAmbiente {
       const key = `fx_fiamma_${i}`;
       if (f.s.texture.key !== key) f.s.setTexture(key);
     }
+    const ora = this.sc.time.now;
     for (const a of this.aloni) {
-      // tremolio: due onde sovrapposte + un po' di rumore, mai a scatti
-      const k = 1 + 0.08 * Math.sin(t * 9 + a.fase) + 0.05 * Math.sin(t * 23 + a.fase * 2) + (Math.random() - 0.5) * 0.04;
-      a.s.setAlpha(a.base * k);
+      if (a.rosone) { a.s.setAlpha(a.base * (1 + 0.1 * Math.sin(t * 1.3 + a.s.x))); continue; }
+      // ogni 60-140 ms la fiamma sceglie una nuova intensita' (0,55-1,15; ogni tanto un calo a 0,35) e ci va morbida
+      if (ora >= a.prossimo) { a.meta = Math.random() < 0.07 ? 0.35 : 0.55 + Math.random() * 0.6; a.prossimo = ora + 60 + Math.random() * 80; }
+      a.k += (a.meta - a.k) * Math.min(1, dt * 18);
+      a.s.setAlpha(a.base * a.k).setScale(a.scala * (0.9 + 0.12 * a.k));
+      a.cuore?.setAlpha(Math.min(1, 0.95 * a.k));
     }
     for (const r of this.raggi) r.setAlpha(0.45 + 0.1 * Math.sin(t * 0.7 + r.x));
-    for (const p of this.polvere) {
-      p.s.x += p.vx * dt; p.s.y += p.vy * dt;
-      if (p.s.y > 175) { p.s.y = 15; p.s.x = camX * 0.2 + Math.random() * VIEW_W; }
-      const vx = camX * 0.2;
-      if (p.s.x < vx - 4) p.s.x += VIEW_W + 8; else if (p.s.x > vx + VIEW_W + 4) p.s.x -= VIEW_W + 8;
-    }
+    void camX;
     void VIEW_H;
   }
 }

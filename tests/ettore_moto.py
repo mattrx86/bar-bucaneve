@@ -11,6 +11,7 @@ with sync_playwright() as p:
     pg.on('console', lambda m: errs.append(m.text) if m.type == 'error' else None)
     pg.on('pageerror', lambda e: errs.append(str(e)))
     pg.goto('file://' + os.path.abspath('dist/index.html')); pg.wait_for_timeout(2500)
+    pg.keyboard.press('Space'); pg.wait_for_timeout(500)   # schermata PREMI UN TASTO
     pg.keyboard.press('Enter'); pg.wait_for_timeout(600); pg.keyboard.press('Enter'); pg.wait_for_timeout(1200)
     pg.evaluate(f"(()=>{{const g={G}; g.onda=99; g.giocatore.x=g.larghezza-440; g.camX=g.larghezza-600;}})()")
     pg.keyboard.down('ArrowRight'); pg.wait_for_timeout(600); pg.keyboard.up('ArrowRight')

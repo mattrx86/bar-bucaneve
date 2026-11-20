@@ -16,6 +16,8 @@ let busVoci: GainNode | null = null;
 
 export function setMuted(m: boolean): void { muted = m; if (master && ctx) master.gain.setValueAtTime(m ? 0 : 0.9, ctx.currentTime); }
 export function isMuted(): boolean { return muted; }
+/** L'audio sta gia' suonando? (i browser lo permettono solo dopo il primo tasto o tocco sulla pagina) */
+export function audioAttivo(): boolean { return !!ctx && ctx.state === 'running'; }
 
 export function unlockAudio(): void {
   try {

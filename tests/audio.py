@@ -34,12 +34,22 @@ with sync_playwright() as p:
 
     # ---------------- STRADA
     print('STRADA'); log(); avvia('strada'); attendi(4)
-    pg.evaluate(f"{G}.giocatore.x = 200")   # parte la prima ondata (gelatai)
-    attendi(5, extra=f"{G}.nemici.forEach(e=>{{if(e.x<{G}.camX+300) e.danno(99,1,false,0);}})")
-    L = log()
-    mus = [e['nome'] for e in L if e['tipo'] == 'musica']; voci = [e['nome'] for e in L if e['tipo'] == 'voce']
+    uccidi = f"{G}.nemici.forEach(e=>{{if(e.x<{G}.camX+300) e.danno(99,1,false,0);}})"
+    # prima ondata con sole gelataie (Math.random a 0 sceglie il primo foglio, vil_gelataia)
+    pg.evaluate("window.__r = Math.random; Math.random = () => 0")
+    pg.evaluate(f"{G}.giocatore.x = 200"); attendi(2.5)
+    pg.evaluate("Math.random = window.__r"); attendi(3, extra=uccidi)
+    L1 = log()
+    # seconda ondata con gelatai maschi (Math.random a 0,5 -> vil_gelataio1)
+    pg.evaluate("Math.random = () => 0.5")
+    pg.evaluate(f"(()=>{{const g={G}; g.bloccoDx=Infinity; g.giocatore.x = 450;}})()"); attendi(2.5)
+    pg.evaluate("Math.random = window.__r"); attendi(3, extra=uccidi)
+    L2 = log()
+    mus = [e['nome'] for e in L1 + L2 if e['tipo'] == 'musica']
+    v1 = [e['nome'] for e in L1 if e['tipo'] == 'voce']; v2 = [e['nome'] for e in L2 if e['tipo'] == 'voce']
     esito(mus == ['strada'], f'musica: {mus}')
-    esito(set(voci) <= {'barista_femmina', 'gelataio_pepite'} and 'barista_femmina' in voci and 'gelataio_pepite' in voci, f'voci: {voci}')
+    esito('barista_femmina' in v1 and 'gelataio_pepite' not in v1, f'ondata di gelataie -> barista: {v1}')
+    esito('gelataio_pepite' in v2 and 'barista_femmina' not in v2, f'ondata di gelatai -> gelataio: {v2}')
 
     # ---------------- BUCANEVE (Giovanni)
     print('BUCANEVE'); avvia('strada', "{tempo:0,crediti:3,checkpoint:'giova',g:[{vite:3,punti:0,arma:'pistola',munizioni:-1,bombe:10}]}")

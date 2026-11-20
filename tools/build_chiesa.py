@@ -58,32 +58,44 @@ FX['lasagna'] = P.piccolo(teglia, 30, b64png)
 g = P.goccia(); FX['goccia'] = dict(data=b64png(Image.fromarray(g)), w=round(g.shape[1] / P.D, 1), h=round(g.shape[0] / P.D, 1), d=P.D)
 report.append(f'boss_donantonio: {len(frames)} pose')
 
-# --- casse gotiche (progetto-chiesa/oggetti/casse_gotiche.png): 4 fotogrammi dell'apertura + 4 tipi.
-# Riga 1: chiusa (mitragliatrice), crepata, aperta, luce. Riga 2: munizioni (fucile), salute, granate, lanciarazzi.
-# Tutte alla stessa scala: la cassa chiusa e' larga 30 px di gioco (come le casse di Buca Slug).
+# --- casse (progetto-chiesa/oggetti/casse_gotiche.png), usate in chiesa e in strada.
+# Riga 1: cassa della vita chiusa, crepata, aperta, con la luce. Riga 2: munizioni (fucile), mitragliatrice,
+# granate (bombe), cassa dorata con lo stendardo (lanciarazzi). Stessa scala per tutte: la cassa chiusa
+# e' larga 34 px di gioco. Dalla cassa "luce" si ricavano anche i raggi, usati per aprire le altre casse.
 _cg = J('oggetti', 'casse_gotiche.png')
 if os.path.exists(_cg):
     from scipy import ndimage as _nd
     _a = np.array(Image.open(_cg).convert('RGBA'))
     _fg = _a[..., 3] > 128
-    _lab, _ = _nd.label(_nd.binary_dilation(_fg, iterations=3))
+    _lab, _ = _nd.label(_nd.binary_dilation(_fg, iterations=12))
     _pz = []
     for _i, _sl in enumerate(_nd.find_objects(_lab), 1):
         _m = (_lab[_sl] == _i) & _fg[_sl]
         if _m.sum() < 1500: continue
         _c = _a[_sl].copy(); _c[~_m, 3] = 0; _pz.append((_sl[0].start, _sl[1].start, _c))
     _pz.sort(key=lambda t: (t[0] // 300, t[1]))
-    _nomi = ['mitragliatrice', 'crepata', 'aperta', 'luce', 'fucile', 'vita', 'bombe', 'lanciarazzi']
+    _nomi = ['vita', 'crepata', 'aperta', 'luce', 'fucile', 'mitragliatrice', 'bombe', 'lanciarazzi']
     if len(_pz) == 8:
-        _s = 30 * P.D / _pz[0][2].shape[1]
+        _s = 34 * P.D / _pz[0][2].shape[1]
+        def _rid(c):
+            im = Image.fromarray(c).resize((max(1, round(c.shape[1] * _s)), max(1, round(c.shape[0] * _s))), Image.LANCZOS)
+            ar = np.array(im); ar[..., 3] = np.where(ar[..., 3] > 110, 255, 0); return ar
         for _n, (_, _, _c) in zip(_nomi, _pz):
-            _im = Image.fromarray(_c).resize((max(1, round(_c.shape[1] * _s)), max(1, round(_c.shape[0] * _s))), Image.LANCZOS)
-            _ar = np.array(_im); _ar[..., 3] = np.where(_ar[..., 3] > 110, 255, 0)
+            _ar = _rid(_c)
             FX[f'cassa_ch_{_n}'] = dict(data=b64png(Image.fromarray(_ar)), w=round(_ar.shape[1] / P.D, 1), h=round(_ar.shape[0] / P.D, 1), d=P.D)
             Image.fromarray(_ar).save(f'{EXP}/fx_cassa_ch_{_n}.png')
-        report.append('casse gotiche: 8 disegni')
+        # raggi: i pixel gialli sopra la cassa "luce"
+        _l = _pz[3][2].copy(); _rgb = _l[..., :3].astype(int)
+        _gial = (_rgb[..., 0] > 200) & (_rgb[..., 1] > 140) & (_rgb[..., 2] < 120) & (_l[..., 3] > 0)
+        _gial[int(_l.shape[0] * 0.42):] = False
+        _l[~_gial, 3] = 0
+        _ys, _xs = np.where(_l[..., 3] > 0); _l = _l[_ys.min():_ys.max() + 1, _xs.min():_xs.max() + 1]
+        _ar = _rid(_l)
+        FX['cassa_ch_raggi'] = dict(data=b64png(Image.fromarray(_ar)), w=round(_ar.shape[1] / P.D, 1), h=round(_ar.shape[0] / P.D, 1), d=P.D)
+        Image.fromarray(_ar).save(f'{EXP}/fx_cassa_ch_raggi.png')
+        report.append('casse: 8 disegni + raggi')
     else:
-        report.append(f'ATTENZIONE: casse gotiche, trovati {len(_pz)} pezzi invece di 8')
+        report.append(f'ATTENZIONE: casse, trovati {len(_pz)} pezzi invece di 8')
 
 # --- ambiente ---
 import chiesa_dipinti as DP

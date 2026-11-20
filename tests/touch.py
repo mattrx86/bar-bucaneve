@@ -12,6 +12,7 @@ with sync_playwright() as p:
     pg.goto('file://'+os.path.abspath(HTML)); pg.wait_for_timeout(2500)
     print('coarse', pg.evaluate("matchMedia('(pointer: coarse)').matches"))
     pg.screenshot(path=f'{OUT}/t1_titolo.png')
+    pg.touchscreen.tap(300, 140); pg.wait_for_timeout(600)    # TOCCA PER INIZIARE
     pg.touchscreen.tap(300, 140); pg.wait_for_timeout(1200)   # 1 GIOCATORE
     print('scena dopo tap titolo', pg.evaluate("window.__game.scene.getScenes(true).map(s=>s.scene.key)"))
     pg.screenshot(path=f'{OUT}/t2_sel.png')
