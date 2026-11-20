@@ -1,0 +1,50 @@
+# BUCA SLUG - classifica generale: versione per PORTAINER (Stacks -> Add stack -> Web editor).
+# Prima costruite l'immagine "bucaslug-api:1" (Images -> Build a new image, vedi server/LEGGIMI.md).
+# Le variabili ${...} si caricano nella sezione "Environment variables" dello stack (dal file .env).
+# I file del servizio restano in /volume1/docker/bucaslug e si montano in sola lettura.
+services:
+  bucaslug:
+    image: bucaslug-api:1
+    container_name: bucaslug-api
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8896:80"          # solo dal NAS stesso: da fuori si passa dal reverse proxy HTTPS
+    environment:
+      DB_HOST: ${DB_HOST}
+      DB_PORT: ${DB_PORT}
+      DB_NAME: ${DB_NAME}
+      DB_USER: ${DB_USER}
+      DB_PASS: ${DB_PASS}
+      PEPE: ${PEPE}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - /volume1/docker/bucaslug/www:/var/www/html:ro
+      - /volume1/docker/bucaslug/lib:/var/www/lib:ro
+      - /volume1/docker/bucaslug/php-bucaslug.ini:/usr/local/etc/php/conf.d/zz-bucaslug.ini:ro
+      - /volume1/docker/bucaslug/apache-bucaslug.conf:/etc/apache2/conf-enabled/zz-bucaslug.conf:ro
+    read_only: true
+    tmpfs:
+      - /tmp:size=8m
+      - /var/run/apache2:size=1m
+      - /var/lock/apache2:size=1m
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - NET_BIND_SERVICE
+      - SETUID
+      - SETGID
+    mem_limit: 128m
+    pids_limit: 64
+    logging:
+      driver: json-file
+      options: { max-size: "5m", max-file: "2" }
+    labels:
+      - com.centurylinklabs.watchtower.enable=false
+    healthcheck:
+      test: ["CMD", "php", "-d", "allow_url_fopen=1", "-r", "exit(@file_get_contents('http://127.0.0.1/api/classifica.php?n=1') === false ? 1 : 0);"]
+      interval: 2m
+      timeout: 10s
+      retries: 3

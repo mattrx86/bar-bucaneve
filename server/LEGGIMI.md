@@ -94,6 +94,19 @@ Se esce un errore:
 - `{"errore":"db"...}`: database non raggiungibile. Controllate porta, password e "connessione TCP/IP". I dettagli sono nei log: `sudo docker logs bucaslug-api`.
 - Se il container si riavvia di continuo, togliete da `docker-compose.yml` il blocco `cap_drop`/`cap_add` e segnalatemelo: l'immagine non l'ho potuta avviare qui, solo la stessa configurazione di Apache e PHP.
 
+### 4-bis. In alternativa: con Portainer (al posto del punto 4)
+1. **Portainer → Images → Build a new image**
+   - Name: `bucaslug-api:1`
+   - Build method: **Web editor**, incollate:
+     ```
+     FROM php:8.3-apache
+     RUN docker-php-ext-install pdo_mysql && a2enmod headers && mv "$PHP_INI_DIR/php.ini-production" "$PHP_INI_DIR/php.ini" && rm -rf /var/www/html/*
+     ```
+   - **Build the image** (2–4 minuti; alla fine "Image successfully built").
+2. **Stacks → Add stack** → Name `bucaslug` → **Web editor**: incollate tutto `server/portainer-stack.yml`.
+3. Sotto, **Environment variables → Load variables from .env file**: caricate il vostro `.env` (le 6 variabili compaiono nell'elenco).
+4. **Deploy the stack**. Verifica come al punto 4 (`curl` in SSH).
+
 ### 5. Reverse proxy (HTTPS)
 DSM → **Pannello di controllo → Portale di login → Avanzate → Proxy inverso → Crea**:
 - **Origine:** HTTPS, nome host `bucaslug.mattiariccadonna.synology.me`, porta 443, HSTS attivo.
