@@ -9,7 +9,7 @@ browser (gioco su GitHub Pages)
    ▼
 Fritz!Box / ZTE (porta 443 già inoltrata al NAS)
    ▼
-reverse proxy di DSM  bucaslug.mattiariccadonna.synology.me  →  http://localhost:8896
+reverse proxy di DSM  bucaslug.mattiariccadonna.synology.me  →  http://localhost:18896
    ▼
 container "bucaslug-api" (PHP 8.3 + Apache, sola lettura, privilegi minimi)
    ▼
@@ -22,7 +22,7 @@ MariaDB 10 di Synology, database "bucaslug", utente con soli permessi su quel da
 |---|---|
 | I 3 file dell'API (`giocatore.php`, `punteggio.php`, `classifica.php`) | sì, solo in HTTPS tramite il reverse proxy |
 | Tutto il resto del container (cartelle, file, `lib/`) | no: Apache risponde 403 |
-| La porta 8896 del container | no: ascolta solo su 127.0.0.1 del NAS (né internet né LAN) |
+| La porta 18896 del container | no: ascolta solo su 127.0.0.1 del NAS (né internet né LAN) |
 | MariaDB, phpMyAdmin, DSM | no: restano come sono (LAN/WireGuard) |
 | Password del database | solo nel file `.env` sul NAS, mai su GitHub |
 
@@ -86,7 +86,7 @@ Oppure in SSH: `cd /volume1/docker/bucaslug && sudo docker compose up -d --build
 
 **Verifica sul NAS** (SSH):
 ```bash
-curl -s http://127.0.0.1:8896/api/classifica.php
+curl -s http://127.0.0.1:18896/api/classifica.php
 ```
 Risposta attesa: `{"classifica":[]}`.
 
@@ -110,7 +110,7 @@ Se esce un errore:
 ### 5. Reverse proxy (HTTPS)
 DSM → **Pannello di controllo → Portale di login → Avanzate → Proxy inverso → Crea**:
 - **Origine:** HTTPS, nome host `bucaslug.mattiariccadonna.synology.me`, porta 443, HSTS attivo.
-- **Destinazione:** HTTP, `localhost`, porta `8896`.
+- **Destinazione:** HTTP, `localhost`, porta `18896`.
 - **Intestazione personalizzata → Crea → X-Real-IP**, valore `$remote_addr`. Serve ai limiti anti-abuso; senza, tutti sembrano lo stesso utente.
 
 Poi **Sicurezza → Certificato**: assegnate al nuovo servizio lo stesso certificato di `visite.mattiariccadonna.synology.me`.

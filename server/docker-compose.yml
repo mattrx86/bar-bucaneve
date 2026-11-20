@@ -9,7 +9,7 @@ services:
     # Solo sul NAS stesso (127.0.0.1): da internet ci si arriva SOLO passando dal reverse proxy di DSM
     # con HTTPS. Dalla LAN la porta non e' raggiungibile direttamente.
     ports:
-      - "127.0.0.1:8896:80"
+      - "127.0.0.1:18896:80"
     env_file: .env
     # il MariaDB 10 di Synology gira sul NAS, fuori da Docker: lo si raggiunge con questo nome
     extra_hosts:

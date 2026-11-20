@@ -8,7 +8,7 @@ services:
     container_name: bucaslug-api
     restart: unless-stopped
     ports:
-      - "127.0.0.1:8896:80"          # solo dal NAS stesso: da fuori si passa dal reverse proxy HTTPS
+      - "127.0.0.1:18896:80"          # solo dal NAS stesso: da fuori si passa dal reverse proxy HTTPS
     environment:
       DB_HOST: ${DB_HOST}
       DB_PORT: ${DB_PORT}
