@@ -34,23 +34,23 @@ export class TitleScene extends Phaser.Scene {
       this.add.rectangle(0, 0, VIEW_W, VIEW_H, 0x000000, 0.45).setOrigin(0);
     }
     // velo scuro dietro ai testi, cosi' si leggono sopra l'immagine
-    this.add.rectangle(0, 0, VIEW_W, 80, 0x000000, 0.35).setOrigin(0);
-    this.add.rectangle(VIEW_W / 2, 101, 176, 50, 0x000000, 0.45);
+    this.add.rectangle(0, 0, VIEW_W, 0, 0x000000, 0).setOrigin(0);
+    this.add.rectangle(VIEW_W / 2, 108, 176, 48, 0x000000, 0.5);
     this.add.rectangle(0, VIEW_H - 26, VIEW_W, 26, 0x000000, 0.5).setOrigin(0);
 
     // logo BUCA SLUG (tools/logo.py); senza il file resta la scritta
     const t = FX.logo
-      ? this.add.image(VIEW_W / 2, 36, 'fx_logo').setOrigin(0.5).setScale(1 / FX.logo.d)
+      ? this.add.image(VIEW_W / 2, 34, 'fx_logo').setOrigin(0.5).setScale(0.92 / FX.logo.d)
       : txt(this, VIEW_W / 2, 30, 'BUCA SLUG', 28, '#ffe066', 6).setOrigin(0.5);
-    txt(this, VIEW_W / 2, FX.logo ? 72 : 56, 'LA RESA DEI CONTI A PONTE ARCHE', 9, '#ffffff', 3).setOrigin(0.5);
+    txt(this, VIEW_W / 2, FX.logo ? 74 : 56, 'LA RESA DEI CONTI A PONTE ARCHE', 8, '#ffffff', 3).setOrigin(0.5);
     this.tweens.add({ targets: t, scaleX: t.scaleX * 1.04, scaleY: t.scaleY * 1.04, duration: 900, yoyo: true, repeat: -1 });
     // scelta 1 o 2 giocatori: su/giu e invio, oppure direttamente i tasti 1 e 2, oppure un tocco
     this.modo = loadSave().giocatori === 2 ? 2 : 1;
     this.giocatoriChiesa = this.modo;
     // terza voce: si entra direttamente nella chiesa (HOLY SLUG), saltando strada, Giovanni ed Ettore
-    this.voci = ['1 GIOCATORE', '2 GIOCATORI', 'SOLO LA CHIESA'].map((t, i) => txt(this, VIEW_W / 2, 86 + i * 14, t, i < 2 ? 12 : 10, i < 2 ? '#ffffff' : '#ffb0e0').setOrigin(0.5));
+    this.voci = ['1 GIOCATORE', '2 GIOCATORI', 'SOLO LA CHIESA'].map((t, i) => txt(this, VIEW_W / 2, 94 + i * 14, t, i < 2 ? 12 : 10, i < 2 ? '#ffffff' : '#ffb0e0').setOrigin(0.5));
     this.voci.forEach((_, i) => {
-      const z = this.add.zone(VIEW_W / 2, 86 + i * 14 + 5, 176, 14).setInteractive();
+      const z = this.add.zone(VIEW_W / 2, 94 + i * 14 + 5, 176, 14).setInteractive();
       z.on('pointerdown', () => { this.modo = i + 1; this.vai(); });
     });
     this.tweens.add({ targets: this.voci, alpha: 0.55, duration: 520, yoyo: true, repeat: -1 });

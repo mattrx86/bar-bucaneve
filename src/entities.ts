@@ -32,6 +32,10 @@ export interface BulletOpts {
   disegno?: string;
   /** Chi ha sparato (indice del giocatore, 0 o 1): serve ad assegnare i punti. */
   chi?: number;
+  /** Rotazione propria in volo (giri al secondo, radianti/s): Bibbia, rosario, teglia che girano. */
+  gira?: number;
+  /** Colore dello sbuffo quando il proiettile tocca terra o colpisce (oggetti lanciati dai boss). */
+  impatto?: number;
 }
 
 export interface World {
@@ -88,7 +92,9 @@ export class Bullet {
   constructor(public w: World, public o: BulletOpts) {
     // proiettili, razzi e granate disegnati da voi (se ci sono), altrimenti quelli del codice
     const dis = o.disegno ? fxTex(o.disegno, o.tex) : PROIETTILI_DISEGNATI[o.tex] ? fxEroe(PROIETTILI_DISEGNATI[o.tex], o.eroe, o.tex) : { key: o.tex, s: 1 };
-    this.sprite = w.sc.add.image(o.x, o.y, dis.key).setDepth(60).setRotation(o.ang);
+    // gli oggetti disegnati che volano dritti non si capovolgono andando a sinistra: si specchiano
+    const specchia = !!o.disegno && !o.arco && Math.cos(o.ang) < 0;
+    this.sprite = w.sc.add.image(o.x, o.y, dis.key).setDepth(60).setRotation(specchia ? 0 : o.ang).setFlipX(specchia);
     if (o.colore !== undefined && dis.key === o.tex) this.sprite.setTint(o.colore);
     this.sprite.setScale((o.scala ?? 1) * dis.s);
     this.vx = Math.cos(o.ang) * o.speed; this.vy = Math.sin(o.ang) * o.speed;
@@ -96,7 +102,8 @@ export class Bullet {
   }
   update(dt: number): void {
     this.px = this.sprite.x; this.py = this.sprite.y;
-    if (this.o.arco) { this.vy += GRAVITY * 0.6 * dt; this.sprite.rotation += 10 * dt; }
+    if (this.o.arco) { this.vy += GRAVITY * 0.6 * dt; this.sprite.rotation += (this.o.gira ?? 10) * dt; }
+    else if (this.o.gira) this.sprite.rotation += this.o.gira * dt;
     else if (this.o.tex === 'bottiglia') this.sprite.rotation += Math.sign(this.vx) * 14 * dt; // bottiglia che rotola
     this.sprite.x += this.vx * dt; this.sprite.y += this.vy * dt;
     this.vissuto += Math.hypot(this.vx, this.vy) * dt;
@@ -579,7 +586,7 @@ export class Giova extends BossBase {
         this.guardaDx = dx > 0;
         this.disegna('attack_01');
         this.sprite.setTint(Math.floor(now * 14) % 2 ? 0xffd060 : 0xffffff);
-        if (this.t > 0.75) { parla('giova', 'carica'); this.st = 'carica'; this.t = 0; this.velCarica = (this.guardaDx ? 1 : -1) * 250; this.colpito = false; }
+        if (this.t > 0.75) { voce('giova_ciao', 3); this.st = 'carica'; this.t = 0; this.velCarica = (this.guardaDx ? 1 : -1) * 250; this.colpito = false; }
         break;
       case 'carica':
         this.x += this.velCarica * dt;

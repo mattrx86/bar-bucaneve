@@ -3,6 +3,16 @@
 let ctx: AudioContext | null = null;
 let muted = false;
 let master: GainNode | null = null;
+// CANALI: musica (brani e sottofondi), voci (personaggi e boss), effetti (armi, ambiente, menu).
+// Ognuno ha il suo volume e passa dal limitatore comune: una voce abbassa la musica, non la interrompe.
+let busMusica: GainNode | null = null;
+/** Registro per i test automatici: se la pagina ha creato window.__audioLog, ci finisce ogni musica,
+ *  sottofondo e voce che parte davvero. Nel gioco normale non fa nulla. */
+function registra(tipo: string, nome: string): void {
+  const l = (window as unknown as { __audioLog?: { tipo: string; nome: string; t: number }[] }).__audioLog;
+  if (l) l.push({ tipo, nome, t: Math.round(performance.now()) });
+}
+let busVoci: GainNode | null = null;
 
 export function setMuted(m: boolean): void { muted = m; if (master && ctx) master.gain.setValueAtTime(m ? 0 : 0.9, ctx.currentTime); }
 export function isMuted(): boolean { return muted; }
@@ -17,6 +27,8 @@ export function unlockAudio(): void {
       const comp = ctx.createDynamicsCompressor();
       comp.threshold.value = -14; comp.knee.value = 10; comp.ratio.value = 6; comp.attack.value = 0.003; comp.release.value = 0.12;
       master.connect(comp).connect(ctx.destination);
+      busMusica = ctx.createGain(); busMusica.gain.value = 1; busMusica.connect(master);
+      busVoci = ctx.createGain(); busVoci.gain.value = 1.1; busVoci.connect(master);
     }
     if (ctx.state === 'suspended') void ctx.resume();
   } catch { ctx = null; }
@@ -284,65 +296,90 @@ import { VOCI, MUSICA, VOCI_FASE, SFX } from '../content/extra';
 /** Stadio in corso: le voci messe in voci/<stadio>/ si sentono solo li' ('strada', 'bucaneve', 'ettore'). null = tutte. */
 let faseAudio: string | null = null;
 export function setFaseAudio(f: string | null): void { faseAudio = f; }
-/** Una voce di stadio `fv` si sente nello stadio in corso? Lo spiazzo del Bucaneve e' ancora la strada:
- *  le voci della strada continuano anche quando c'e' Giovanni (non il contrario). */
-function valeInFase(fv: string | undefined): boolean {
-  if (!fv || !faseAudio || fv === faseAudio) return true;
-  return faseAudio === 'bucaneve' && fv === 'strada';
+/** Quali voci si sentono in ogni stadio (cartelle di grafica/voci/ e progetto-chiesa/audio/sfx):
+ *  - strada: solo le voci della strada (barista, gelataio);
+ *  - bucaneve: quelle di Giovanni piu' quelle della strada (lo spiazzo del bar e' ancora la strada);
+ *  - ettore (cantina): quelle di Ettore piu' il gelataio, che arriva con i rinforzi;
+ *  - chiesa: solo Griso e Don Antonio.
+ *  Fuori dalla partita (menu) nessuna voce di stadio. */
+const ALTRE_VOCI_AMMESSE: Record<string, string[]> = { ettore: ['gelataio_pepite'] };
+function valeInFase(fv: string | undefined, nome?: string): boolean {
+  if (!fv) return true;
+  if (!faseAudio) return false;
+  if (fv === faseAudio) return true;
+  if (faseAudio === 'bucaneve' && fv === 'strada') return true;
+  return !!nome && (ALTRE_VOCI_AMMESSE[faseAudio] ?? []).includes(nome);
 }
 
 /** Sottofondo di uno stadio: un brano corto (es. "sottofondo boss giova") suonato SOPRA la musica,
  *  una volta subito e poi ogni `ogni` secondi, finche' non si chiama sottofondo(null). */
-let sottTimer: ReturnType<typeof setInterval> | null = null;
-export function sottofondo(nome: string | null, ogni = 0, volume = 0.8): void {
-  if (sottTimer) { clearInterval(sottTimer); sottTimer = null; }
+let sottSrc: AudioBufferSourceNode | null = null;
+export function sottofondo(nome: string | null, volume = 0.8): void {
+  try { sottSrc?.stop(); } catch { /* gia' finito */ }
+  sottSrc = null;
   if (!nome || !ctx) return;
-  const suona = (): void => {
-    void decodificaMusica(nome).then((b) => {
-      if (!b || !ctx || !master || muted) return;
-      const src = ctx.createBufferSource(); src.buffer = b;
-      const g = ctx.createGain(); g.gain.value = VOL_MUSICA * 2.4 * volume;
-      src.connect(g).connect(master); src.start();
-    });
-  };
-  suona();
-  if (ogni > 0) sottTimer = setInterval(suona, ogni * 1000);
+  void decodificaMusica(nome).then((b) => {
+    if (!b || !ctx || !busMusica || muted) return;
+    const src = ctx.createBufferSource(); src.buffer = b;
+    const g = ctx.createGain(); g.gain.value = VOL_MUSICA * 2.4 * volume;
+    src.connect(g).connect(busMusica); src.start();
+    sottSrc = src; registra('sottofondo', nome);
+  });
 }
 const buffers: Record<string, AudioBuffer | null> = {};
 let ultimaVoce: AudioBufferSourceNode | null = null;
 const ultimoUso: Record<string, number> = {};
 
-async function decodifica(nome: string): Promise<AudioBuffer | null> {
-  if (nome in buffers) return buffers[nome];
-  buffers[nome] = null;
-  const d = VOCI[nome]; if (!d || !ctx) return null;
-  try {
-    const bin = atob(d.split(',')[1]);
-    const arr = new Uint8Array(bin.length);
-    for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
-    buffers[nome] = await ctx.decodeAudioData(arr.buffer);
-  } catch { buffers[nome] = null; }
-  return buffers[nome];
+const vociInCorso: Record<string, Promise<AudioBuffer | null>> = {};
+function decodifica(nome: string): Promise<AudioBuffer | null> {
+  if (nome in vociInCorso) return vociInCorso[nome];
+  const d = VOCI[nome]; if (!d || !ctx) return Promise.resolve(null);
+  vociInCorso[nome] = (async () => {
+    try {
+      const bin = atob(d.split(',')[1]);
+      const arr = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+      buffers[nome] = await ctx!.decodeAudioData(arr.buffer);
+    } catch { buffers[nome] = null; }
+    return buffers[nome];
+  })();
+  return vociInCorso[nome];
 }
 /** Precarica tutte le voci (dopo il primo tasto, quando l'audio è sbloccato). */
 export function preparaVoci(): void { preparaCampioni(); if (ctx) for (const n of Object.keys(VOCI)) void decodifica(n); }
 
 /** Suona una voce. `pausa` = secondi minimi tra due usi della stessa voce. Una voce alla volta. */
-export function voce(nome: string, pausa = 0, volume = 1): void {
-  if (!ctx || !master || muted) return;
-  if (!valeInFase(VOCI_FASE[nome])) return;   // voce di un altro stadio
+export function voce(nome: string, pausa = 0, volume = 1, prioritaria = false): void {
+  if (!ctx || !busVoci || muted) return;
+  if (!valeInFase(VOCI_FASE[nome], nome)) return;   // voce di un altro stadio
   const now = ctx.currentTime;
+  if (!prioritaria && now < prioritariaFino) return;   // sta parlando un boss che muore: non si interrompe
   if (pausa && ultimoUso[nome] !== undefined && now - ultimoUso[nome] < pausa) return;
   ultimoUso[nome] = now;
   void decodifica(nome).then((b) => {
-    if (!b || !ctx || !master) return;
-    try { ultimaVoce?.stop(); } catch { /* già finita */ }
+    if (!b || !ctx || !busVoci) return;
+    if (!prioritaria && ctx.currentTime < prioritariaFino) return;
+    try { ultimaVoce?.stop(); } catch { /* già finita */ }   // una voce alla volta: la nuova sostituisce la vecchia
     const src = ctx.createBufferSource(); src.buffer = b;
     const g = ctx.createGain(); g.gain.value = volume;
-    src.connect(g).connect(master); src.start();
-    ultimaVoce = src;
+    src.connect(g).connect(busVoci); src.start();
+    ultimaVoce = src; registra('voce', nome);
+    if (prioritaria) prioritariaFino = ctx.currentTime + b.duration;
     abbassaMusica(b.duration);
   });
+}
+let prioritariaFino = 0;
+/** Ferma la voce in corso e il sottofondo (cambio di livello, fine partita). */
+export function zittisci(): void {
+  try { ultimaVoce?.stop(); } catch { /* già finita */ }
+  ultimaVoce = null; prioritariaFino = 0;
+  sottofondo(null);
+}
+/** Pausa: musica piu' bassa e voci ferme; alla ripresa torna tutto com'era. */
+export function pausaAudio(p: boolean): void {
+  if (!ctx || !busMusica) return;
+  busMusica.gain.setTargetAtTime(p ? 0.35 : 1, ctx.currentTime, 0.1);
+  if (p) { try { ultimaVoce?.stop(); } catch { /* già finita */ } try { sottSrc?.stop(); } catch { /* idem */ } }
 }
 
 // ---------------------------------------------------------------------------
@@ -351,6 +388,8 @@ export function voce(nome: string, pausa = 0, volume = 1): void {
 // ---------------------------------------------------------------------------
 /** Musica sotto a voci ed effetti: i brani sono normalizzati a -16 LUFS dal build, qui si abbassano. */
 const VOL_MUSICA = 0.25;
+/** Volume di singoli brani rispetto agli altri (la musica della navata della chiesa e' 1,5 volte piu' alta). */
+const VOL_BRANO: Record<string, number> = { chiesa: 1.5 };
 const musBuf: Record<string, AudioBuffer | null> = {};
 let musSrc: AudioBufferSourceNode | null = null;
 let musGain: GainNode | null = null;
@@ -365,18 +404,24 @@ function risolviMusica(nome: string): string | null {
   for (const p of nome.split('-').reverse()) if (MUSICA[p]) return p;
   return chiavi.find((k) => k.includes(nome) || nome.includes(k)) ?? null;
 }
-async function decodificaMusica(nome: string): Promise<AudioBuffer | null> {
-  if (nome in musBuf) return musBuf[nome];
-  musBuf[nome] = null;
+// La decodifica si ricorda come promessa: due richieste ravvicinate dello stesso brano aspettano la
+// stessa decodifica invece di ricevere "niente" (prima la seconda richiesta restava muta).
+const musInCorso: Record<string, Promise<AudioBuffer | null>> = {};
+function decodificaMusica(nome: string): Promise<AudioBuffer | null> {
+  if (nome in musInCorso) return musInCorso[nome];
   const vero = risolviMusica(nome);
-  const d = vero ? MUSICA[vero] : undefined; if (!d || !ctx) return null;
-  try {
-    const bin = atob(d.split(',')[1]);
-    const arr = new Uint8Array(bin.length);
-    for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
-    musBuf[nome] = await ctx.decodeAudioData(arr.buffer);
-  } catch { musBuf[nome] = null; }
-  return musBuf[nome];
+  const d = vero ? MUSICA[vero] : undefined;
+  if (!d || !ctx) return Promise.resolve(null);
+  musInCorso[nome] = (async () => {
+    try {
+      const bin = atob(d.split(',')[1]);
+      const arr = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+      musBuf[nome] = await ctx!.decodeAudioData(arr.buffer);
+    } catch { musBuf[nome] = null; }
+    return musBuf[nome];
+  })();
+  return musInCorso[nome];
 }
 /** Avvia un brano in ciclo (null = silenzio). Se è già quello in corso non fa nulla. */
 export function musica(nome: string | null): void {
@@ -394,17 +439,19 @@ export function musica(nome: string | null): void {
     if (!b || !ctx || !master || musNome !== nome) return;
     const src = ctx.createBufferSource(); src.buffer = b; src.loop = true;
     const g = ctx.createGain(); g.gain.value = 0;
-    g.gain.setTargetAtTime(VOL_MUSICA, ctx.currentTime, 0.4);
-    src.connect(g).connect(master); src.start();
-    musSrc = src; musGain = g;
+    g.gain.setTargetAtTime(volBrano(), ctx.currentTime, 0.4);
+    src.connect(g).connect(busMusica ?? master); src.start();
+    musSrc = src; musGain = g; registra('musica', nome);
   });
 }
+function volBrano(): number { return VOL_MUSICA * (VOL_BRANO[musNome ?? ''] ?? 1); }
+/** Mentre parla una voce la musica scende (al 45%), non si ferma; poi risale piano. */
 function abbassaMusica(sec: number): void {
   if (!ctx || !musGain) return;
   const t = ctx.currentTime;
   musGain.gain.cancelScheduledValues(t);
-  musGain.gain.setTargetAtTime(VOL_MUSICA * 0.3, t, 0.08);
-  musGain.gain.setTargetAtTime(VOL_MUSICA, t + sec, 0.3);
+  musGain.gain.setTargetAtTime(volBrano() * 0.45, t, 0.08);
+  musGain.gain.setTargetAtTime(volBrano(), t + sec, 0.3);
 }
 
 /**
@@ -418,7 +465,7 @@ export function parla(chi: string | string[], evento: string, prob = 1, pausa = 
   if (ctx.currentTime - ultimaFrase < 0.7) return false; // non accavallare le frasi
   for (const c of Array.isArray(chi) ? chi : [chi]) {
     const base = `${c}_${evento}`;
-    const scelte = Object.keys(VOCI).filter((k) => (k === base || new RegExp(`^${base}_\\d+$`).test(k)) && valeInFase(VOCI_FASE[k]));
+    const scelte = Object.keys(VOCI).filter((k) => (k === base || new RegExp(`^${base}_\\d+$`).test(k)) && valeInFase(VOCI_FASE[k], k));
     if (!scelte.length) continue;
     ultimaFrase = ctx.currentTime;
     voce(scelte[Math.floor(Math.random() * scelte.length)], pausa);

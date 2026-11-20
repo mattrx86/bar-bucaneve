@@ -134,11 +134,24 @@ def griso(path, altezza_gioco=68):
     r0, r1 = [[c['img'] for c in r] for r in R]
     w1, w2 = dividi(R[0][7])
     s = altezza_gioco * D / altezza(r0[0])
+    # Nella posa "frusta_03" il rosario e' gia' in volo, staccato dalla mano: se restasse nella posa
+    # sembrerebbe congelato a mezz'aria. Si separa: il corpo resta nella posa, il rosario diventa il
+    # proiettile, e si annota dove si trova rispetto ai piedi (pixel di gioco) per farlo partire da li'.
+    f3 = r0[8]; al = f3[..., 3] > 0
+    lab, n = nd.label(nd.binary_dilation(al, iterations=2), structure=np.ones((3, 3)))
+    sz = nd.sum(al, lab, range(1, n + 1)); corpo = lab == (1 + int(np.argmax(sz)))
+    corpo_img = f3.copy(); corpo_img[~corpo & al, 3] = 0
+    ros_img = f3.copy(); ros_img[corpo | ~al, 3] = 0
+    cm = corpo & al; ys, xs = np.where(cm); piede_y = ys.max(); basso = cm[int(ys.min() + (piede_y - ys.min()) * 0.75):]
+    cx = np.where(basso)[1].mean()
+    ry, rx = np.where(ros_img[..., 3] > 0)
+    rosario_off = (round((rx.mean() - cx) * s / D, 1), round((ry.mean() - piede_y) * s / D, 1))
+    r0 = list(r0); r0[8] = corpo_img
     pose = [('idle', r0[0]), ('idle_02', r0[1]), ('walk_01', r0[2]), ('walk_02', r0[3]), ('walk_03', r0[4]), ('walk_04', r0[5]),
             ('pugni', r0[6]), ('frusta_01', w1), ('frusta_02', w2), ('frusta_03', r0[8]),
             ('bibbia_01', r1[0]), ('bibbia_02', r1[1]), ('bibbia_03', r1[2]), ('bibbia_04', r1[3]),
             ('hit', r1[5]), ('recupero_01', r1[6]), ('recupero_02', r1[7])]
-    return [(n, con_contorno(a_pixel(tieni_corpo(im, 0.04), s))) for n, im in pose], r1[4]
+    return [(n, con_contorno(a_pixel(tieni_corpo(im, 0.04), s))) for n, im in pose], r1[4], ros_img, rosario_off
 
 
 def don_antonio(cartella, altezza_gioco=80):

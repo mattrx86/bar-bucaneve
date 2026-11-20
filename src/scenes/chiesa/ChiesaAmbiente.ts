@@ -90,6 +90,13 @@ export class ChiesaAmbiente {
       const s = sc.add.rectangle(Math.random() * VIEW_W, 20 + Math.random() * 150, 1, 1, 0xfff0d0, 0.25 + Math.random() * 0.35).setScrollFactor(0.2, 0).setDepth(70);
       this.polvere.push({ s, vx: -3 + Math.random() * 6, vy: 2 + Math.random() * 4 });
     }
+    // oggetti di scena (foglio "Elementi pixel art..." in progetto-chiesa/fondali/): solo decorazione,
+    // nessuna collisione. "medio" = sul pavimento dietro ai personaggi; "primo" = davanti, in basso e in controluce.
+    for (const o of CH_BG.oggetti ?? []) {
+      const f = FX[o.fx]; if (!f) continue;
+      const s = sc.add.image(o.x, o.strato === 'primo' ? VIEW_H + 6 : 179, `fx_${o.fx}`).setOrigin(0.5, 1).setScale(1 / f.d).setFlipX(o.flip);
+      if (o.strato === 'primo') s.setDepth(80).setTint(0x55505e); else s.setDepth(30);
+    }
     CH_BG.primo.parts.forEach((_, i) => sc.add.image(i * 512, 0, `ch_primo_${i}`).setOrigin(0).setScale(1 / d).setScrollFactor(CH_BG.primo.k, 1).setDepth(80));
   }
 

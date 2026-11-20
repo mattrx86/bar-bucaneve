@@ -24,7 +24,7 @@ import { ChiesaAmbiente } from './chiesa/ChiesaAmbiente';
 interface Prop { s: Phaser.GameObjects.Image; def: PropPos; vita: number; rompe: Rottura }
 import { Controls } from '../core/controls';
 import { mostraTouch } from '../core/touch';
-import { sfx, setMuted, isMuted, voce, musica, parla, setFaseAudio, sottofondo } from '../core/audio';
+import { sfx, setMuted, isMuted, voce, musica, parla, setFaseAudio, sottofondo, zittisci, pausaAudio } from '../core/audio';
 import { loadSave, writeSave } from '../core/save';
 import { txt, zoomCamera, PixelText } from '../core/ui';
 import type { Risultato } from './ResultScene';
@@ -71,6 +71,9 @@ export class GameScene extends Phaser.Scene implements World {
   private boss2: BossBase | null = null;
   private ambiente: ChiesaAmbiente | null = null;
   private donArrivato = false;
+  /** Giovanni: soglie di vita a cui suona il suo "sottofondo" (oltre all'entrata) e conto alla rovescia del "ciao". */
+  private sottofondiGiova: number[] = [];
+  private giovaCiaoT = 0;
   private tempoInizio = 0;
   /** Tutti i boss in campo (uno in Buca Slug, fino a due in chiesa). */
   private bossi(): BossBase[] { return [this.boss, this.boss2].filter((b): b is BossBase => !!b); }
@@ -123,7 +126,7 @@ export class GameScene extends Phaser.Scene implements World {
     if (this.fase === 'chiesa') {
       this.ambiente = new ChiesaAmbiente(this);
       this.larghezza = this.ambiente.larghezza;
-      for (const p of PICKUPS_CHIESA) this.casse.push({ s: img(this, p.x, GROUND_Y, `cassa_${p.arma}`, 'cassa').setOrigin(0.5, 1).setDepth(40), arma: p.arma });
+      for (const p of PICKUPS_CHIESA) this.casse.push({ s: img(this, p.x, GROUND_Y + 1, FX[`cassa_ch_${p.arma}`] ? `cassa_ch_${p.arma}` : `cassa_${p.arma}`, 'cassa').setOrigin(0.5, 1).setDepth(40), arma: p.arma });
     } else {
     const pezzi = this.fase === 'strada' ? BG.street.parts : BG.cellar.parts;
     this.larghezza = this.fase === 'strada' ? BG.street.w : BG.cellar.w;
@@ -173,7 +176,7 @@ export class GameScene extends Phaser.Scene implements World {
       ? this.giocatori.map((_, i) => txt(this, 0, 0, `${i + 1}P`, 8, COLORE_G[i]).setOrigin(0.5, 1).setDepth(95))
       : [];
     mostraTouch(true);
-    this.events.once('shutdown', () => { mostraTouch(false); sottofondo(null); });
+    this.events.once('shutdown', () => { mostraTouch(false); zittisci(); pausaAudio(false); });
     this.creaHud();
     this.cameras.main.fadeIn(400);
 
@@ -186,8 +189,10 @@ export class GameScene extends Phaser.Scene implements World {
     } else if (this.fase === 'strada') {
       musica('strada');
       this.time.delayedCall(600, () => parla([this.hero.id, 'eroe'], 'via'));
+      if (!this.st.checkpoint) this.time.delayedCall(2600, () => voce('barista_femmina', 20));
       this.annuncio('MISSIONE 1', 'ARRIVA AL BAR BUCANEVE');
     } else {
+      musica('battaglia-ettore');   // la musica di Ettore parte appena si entra in cantina
       this.introEttore();
     }
   }
@@ -291,7 +296,6 @@ export class GameScene extends Phaser.Scene implements World {
     const n = Math.round((base * molt + (mischia ? 50 : 0)) * this.diff.punti);
     this.punti(n, x, y, chi);
     if (molt > 1) { this.hud.combo.setText(`COMBO X${molt}`).setVisible(true).setAlpha(1); }
-    if (Phaser.Math.Between(0, 99) < 6) voce('gelataio_pepite', 8, 0.9);
     if (molt >= 3) parla([this.hero.id, 'eroe'], 'combo', 0.5);
   }
   giocatoreColpito(): void { this.colpitoNelBoss = true; }
@@ -322,6 +326,7 @@ export class GameScene extends Phaser.Scene implements World {
       // ferma anche timer (ondate, arrivo dei boss) e animazioni, non solo l'update
       this.time.paused = this.pausa;
       if (this.pausa) this.tweens.pauseAll(); else this.tweens.resumeAll();
+      pausaAudio(this.pausa);
     }
     if (this.pausa) {
       if (inps.some((i) => i.audioTap)) { setMuted(!isMuted()); writeSave({ muted: isMuted() }); }
@@ -340,7 +345,7 @@ export class GameScene extends Phaser.Scene implements World {
       t.setVisible(!p.morto).setPosition(pix(p.x), pix(p.y - 62 - i * 9));
     });
     this.aggiornaCamera(dt);
-    if (this.fase === 'strada') this.aggiornaStrada();
+    if (this.fase === 'strada') { this.aggiornaStrada(); this.audioGiova(dt); }
     else if (this.fase === 'chiesa') this.aggiornaChiesa();
     this.ambiente?.update(dt, this.camX);
     for (const e of this.nemici) e.update(dt);
@@ -389,6 +394,9 @@ export class GameScene extends Phaser.Scene implements World {
     if (this.onda < WAVES.length && xg > WAVES[this.onda].x) {
       if (this.onda === CHECKPOINT_ONDA && this.st.checkpoint !== 'giova') { this.st.checkpoint = 'meta'; this.annuncio('CHECKPOINT!', 'SE PERDETE RIPARTITE DA QUI'); }
       const w = WAVES[this.onda++];
+      // quando entrano i gelatai si sente il gelataio (una volta per ondata, non piu' di una ogni 9 s)
+      const primoGelataio = w.nemici.filter((n) => ENEMIES[n.tipo].sheets.some((k) => k.includes('gelat'))).map((n) => n.ritardo).sort((a, b) => a - b)[0];
+      if (primoGelataio !== undefined) this.time.delayedCall(primoGelataio * 1000 + 450, () => voce('gelataio_pepite', 9, 0.9));
       this.bloccoDx = this.camX + VIEW_W + 40;
       for (const n of w.nemici) {
         this.time.delayedCall(n.ritardo * 1000, () => {
@@ -421,13 +429,15 @@ export class GameScene extends Phaser.Scene implements World {
       this.arena = { x: arenaX }; this.giovaArrivato = true; this.st.checkpoint = 'giova';
       // la musica della strada continua anche con Giovanni; il suo "sottofondo" suona sopra, a intervalli
       setFaseAudio('bucaneve');
-      voce('barista_femmina');
+      voce('barista_femmina', 20);
       this.time.delayedCall(700, () => {
         this.boss = new Giova(this, arenaX + VIEW_W + 40);
         this.scalaBoss(this.boss, 1.5);
         this.colpitoNelBoss = false;
-        this.boss.onMorte = () => { parla('giova', 'muore', 1, 0); sottofondo(null); this.bonusPerfetto(); };
-        this.time.delayedCall(2400, () => { if (this.boss && !this.boss.morto) sottofondo('giova', 14); });
+        this.boss.onMorte = () => { sottofondo(null); this.bonusPerfetto(); };
+        this.sottofondiGiova = [0.7, 0.4, 0.15];
+        this.time.delayedCall(2400, () => { if (this.boss && !this.boss.morto) sottofondo('giova'); });
+        this.giovaCiaoT = 3;
         this.mostraBossHud();
         this.annuncio('GIOVANNI', 'IL BUTTAFUORI DEL BUCANEVE');
       });
@@ -444,6 +454,16 @@ export class GameScene extends Phaser.Scene implements World {
       }
     }
   }
+  /** Giovanni parla spesso ("ciao" ogni 5-7 s mentre combatte) e il suo sottofondo suona 4 volte in tutto. */
+  private audioGiova(dt: number): void {
+    const g = this.boss;
+    if (!(g instanceof Giova) || g.morto || !g.attivo) return;
+    this.giovaCiaoT -= dt;
+    if (this.giovaCiaoT <= 0) { voce('giova_ciao', 3); this.giovaCiaoT = 5 + Math.random() * 2; }
+    const k = g.vita / g.vitaMax;
+    if (this.sottofondiGiova.length && k <= this.sottofondiGiova[0]) { this.sottofondiGiova.shift(); sottofondo('giova'); }
+  }
+
   // ------------------------------------------------------------------ HOLY SLUG: la chiesa
   /** Navata: ondate come in strada (stesso cancello, stessa freccia "DIETRO!"), poi l'arena dell'altare. */
   private aggiornaChiesa(): void {
@@ -540,6 +560,7 @@ export class GameScene extends Phaser.Scene implements World {
       if (b.morto) {
         if (b.o.esplosivo) this.esplodi(b);
         else if (b.o.tex === 'bottiglia') this.cocci(b.sprite.x, b.sprite.y);
+        else if (b.o.impatto !== undefined) this.sbuffo(b.sprite.x, b.sprite.y, b.o.impatto);
         continue;
       }
       const x = b.sprite.x, y = b.sprite.y;
@@ -552,6 +573,7 @@ export class GameScene extends Phaser.Scene implements World {
         if (p) {
           p.danno(b.o.danno); b.morto = true;
           if (b.o.tex === 'bottiglia') this.cocci(x, y);
+          else if (b.o.impatto !== undefined) this.sbuffo(x, y, b.o.impatto);
         }
         continue;
       }
@@ -645,6 +667,15 @@ export class GameScene extends Phaser.Scene implements World {
     this.tweens.add({ targets: s, y: y - 8, alpha: 0, duration: 450, onComplete: () => s.destroy() });
     return true;
   }
+  /** Oggetto lanciato da un boss che tocca terra o colpisce: sbuffo di polvere del suo colore. */
+  private sbuffo(x: number, y: number, col: number): void {
+    sfx('nemicoColpito');
+    const yy = Math.min(y, GROUND_Y - 3);
+    for (let i = 0; i < 7; i++) {
+      const s = this.add.image(x, yy, 'px').setTint(i % 2 ? col : 0xd8d0c0).setScale(2).setDepth(62);
+      this.tweens.add({ targets: s, x: x + Phaser.Math.Between(-16, 16), y: yy - Phaser.Math.Between(3, 16), alpha: 0, duration: 420, onComplete: () => s.destroy() });
+    }
+  }
   private cocci(x: number, y: number): void {
     sfx('nemicoColpito');
     if (this.detriti(x, Math.min(y, GROUND_Y - 4), 0.5)) return;
@@ -659,9 +690,11 @@ export class GameScene extends Phaser.Scene implements World {
       if (!c.s.active) continue;
       const p = this.giocatori.find((g) => !g.morto && Math.abs(c.s.x - g.x) < 14 && g.y > GROUND_Y - 20);
       if (p) {
-        p.prendiArma(c.arma); sfx('raccolta');
-        this.testo(p.x, p.y - 62, WEAPONS[c.arma].nome + '!', '#80ff80');
-        this.apriCassa(c.s.x);
+        sfx('raccolta');
+        if (c.arma === 'vita') { p.vita = Math.min(p.vitaMax, p.vita + Math.round(p.vitaMax * 0.5)); this.testo(p.x, p.y - 62, 'VITA!', '#ff8080'); }
+        else if (c.arma === 'bombe') { p.bombe += 5; this.testo(p.x, p.y - 62, 'BOMBE +5!', '#ffe066'); }
+        else { p.prendiArma(c.arma); this.testo(p.x, p.y - 62, WEAPONS[c.arma].nome + '!', '#80ff80'); }
+        if (this.fase === 'chiesa' && FX.cassa_ch_crepata) this.apriCassaGotica(c.s.x); else this.apriCassa(c.s.x);
         c.s.destroy();
       }
     }
@@ -677,6 +710,12 @@ export class GameScene extends Phaser.Scene implements World {
       if (i <= 6) { const t = fxTex(`apre_${i}`, 'cassa'); s.setTexture(t.key).setScale(t.s); }
       if (i === 6) this.tweens.add({ targets: s, alpha: 0, delay: 400, duration: 300, onComplete: () => s.destroy() });
     } });
+  }
+  /** Cassa gotica che si apre: crepata -> aperta (polvere) -> luce, poi svanisce. */
+  private apriCassaGotica(x: number): void {
+    const s = img(this, x, GROUND_Y + 1, 'cassa_ch_crepata', 'cassa').setOrigin(0.5, 1).setDepth(41);
+    ['cassa_ch_aperta', 'cassa_ch_luce'].forEach((k, i) => this.time.delayedCall(90 * (i + 1), () => { if (s.active) { const t = fxTex(k, 'cassa'); s.setTexture(t.key).setScale(t.s); } }));
+    this.tweens.add({ targets: s, alpha: 0, delay: 650, duration: 350, onComplete: () => s.destroy() });
   }
   /** Sbuffo di polvere (morti, atterraggi pesanti). */
   polvere(x: number, grande = false): void {
@@ -778,6 +817,7 @@ export class GameScene extends Phaser.Scene implements World {
       e.onFase2 = () => {
         // a 62% di vita chiama rinforzi
         this.time.delayedCall(400, () => { this.spawn('gelataio', this.camX - 20); this.spawn('gelataio', this.camX + VIEW_W + 20); });
+        this.time.delayedCall(900, () => voce('gelataio_pepite', 9, 0.9));   // entrano i gelatai
       };
       e.onFase3 = () => {
         // ultimo quarto: due ubriachi che tirano bottiglie mentre Ettore tiene sotto tiro

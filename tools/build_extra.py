@@ -133,7 +133,8 @@ for radice, _cartelle, files in sorted(os.walk(VOCI)):
 # nome nuovo: (sorgente, intonazione, velocita', effetto). Se caricate un file con il nome
 # nuovo, vince il vostro.
 # ---------------------------------------------------------------------------
-DERIVATE = {
+# Dalla 1.5 non si usano piu': erano voci finte e stonavano. Restano solo le registrazioni vere.
+DERIVATE_VECCHIE = {
     'gelataia_muore': ('gelataio_pepite', 1.45, 1.0, ''),
     'gelataio_muore': ('gelataio_pepite', 0.85, 1.0, ''),
     'gelataio_attacco': ('gelataio_pepite', 1.1, 1.15, ''),
@@ -146,6 +147,7 @@ DERIVATE = {
     'giova_carica': ('giova_ciao', 0.85, 1.3, ''),
     'giova_muore': ('giova_ciao', 0.7, 0.6, ''),
 }
+DERIVATE = {}
 for nuovo, (src, pitch, vel, eff) in DERIVATE.items():
     if nuovo in voci or src not in voci: continue
     sorg = os.path.join(tmp, src + '.mp3'); out = os.path.join(tmp, nuovo + '.mp3')
@@ -216,8 +218,11 @@ if os.path.isfile(_tt):
 # --- logo BUCA SLUG (grafica/titolo/logo.png, generato da tools/logo.py): largo 110 px di gioco, pixel netti ---
 _lg = os.path.join(os.path.dirname(SHEET), '..', 'titolo', 'logo.png')
 if os.path.exists(_lg):
+    # largo 132 px di gioco; la texture e' 3 volte piu' fitta (lo zoom della camera) per restare nitida
     _l = Image.open(_lg).convert('RGBA')
-    fx['logo'] = dict(data=b64png(_l), w=110, h=round(_l.height * 110 / _l.width, 1), d=_l.width / 110)
+    _w = 132 * 3
+    if _l.width > _w: _l = _l.resize((_w, round(_l.height * _w / _l.width)), Image.LANCZOS)
+    fx['logo'] = dict(data=b64png(_l), w=132, h=round(_l.height * 132 / _l.width, 1), d=_l.width / 132)
 
 # --- bottiglia "standard" (verde originale) lanciata dagli ubriachi della strada ---
 _bt = os.path.join(os.path.dirname(SHEET), 'Bottiglia Verde Pixel Art.png')

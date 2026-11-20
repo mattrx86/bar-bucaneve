@@ -52,6 +52,47 @@ def fiamme_dipinte(im, minimo=5, unisci=26):
     return pts
 
 
+# Oggetti dal foglio "Elementi pixel art dell'ambiente di una chiesa" (fondali/): indice del pezzo nel foglio
+# (ordinati per riga e poi da sinistra) e altezza in pixel di gioco. Solo decorazione: nessuna collisione.
+OGGETTI = {
+    'panca': (9, 30), 'panca_rotta': (10, 26), 'inginocchiatoio': (11, 24), 'tavolo_candele': (6, 28),
+    'leggio': (7, 30), 'colonna_rotta': (14, 34), 'macerie_piccole': (22, 12), 'macerie': (24, 14),
+    'macerie_grandi': (23, 20), 'cassa': (20, 20), 'barili': (21, 20), 'vaso_gigli': (17, 22), 'vaso_rose': (18, 20),
+}
+
+
+def foglio_oggetti(path):
+    """Separa i pezzi del foglio (fondo bianco/grigio chiaro): il fondo e' il chiaro collegato al bordo di
+    ogni ritaglio, cosi' restano i bianchi interni (gigli, tovaglie) chiusi dal contorno scuro."""
+    from scipy import ndimage as nd
+    a = np.array(Image.open(path).convert('RGBA'))
+    rgb = a[..., :3].astype(int)
+    chiaro = (rgb.min(2) > 200) & (rgb.max(2) - rgb.min(2) < 18)
+    fg = nd.binary_opening(~chiaro, iterations=1)
+    lab, n = nd.label(nd.binary_dilation(fg, iterations=4))
+    pezzi = []
+    for i, sl in enumerate(nd.find_objects(lab), 1):
+        m = (lab[sl] == i) & fg[sl]
+        if m.sum() < 800: continue
+        pezzi.append((sl, i))
+    pezzi.sort(key=lambda t: (t[0][0].start // 200, t[0][1].start))
+    out = []
+    for sl, i in pezzi:
+        c = a[sl].copy(); ch = chiaro[sl]
+        l2, _ = nd.label(ch)
+        bordo = set(np.unique(np.concatenate([l2[0], l2[-1], l2[:, 0], l2[:, -1]]))) - {0}
+        fondo = np.isin(l2, list(bordo)) | (lab[sl] != i)
+        # vuoti chiusi grandi e quasi bianchi (es. tra le gambe di un tavolo): fondo anche loro
+        for j, sl2 in enumerate(nd.find_objects(l2), 1):
+            if j in bordo or sl2 is None: continue
+            m2 = l2[sl2] == j
+            if m2.sum() > 1500 and rgb[sl][sl2][m2].min() > 225: fondo[sl2] |= m2
+        c[..., 3] = np.where(fondo, 0, 255)
+        ys, xs = np.where(c[..., 3] > 0)
+        out.append(c[ys.min():ys.max() + 1, xs.min():xs.max() + 1])
+    return out
+
+
 def pezzo(path, piede_frazione, densita=D):
     """Scala l'immagine in modo che la riga dei piedi (frazione dell'altezza) finisca a y=180 di gioco e
     restituisce una fascia RGBA alta 216 px di gioco (alla densita' indicata)."""
@@ -157,8 +198,24 @@ def costruisci(P, b64png, prev):
         cfg['rosone'] = dict(x=round(rx, 1), y=round(ry, 1), r=round(rr, 1))
     fiamme = [dict(x=f['x'], y=f['y'], k=f.get('k', 0.8)) for f in cfg.get('fiamme', [])]
     ros = cfg.get('rosone', {'x': arenaX + 192, 'y': 60, 'r': 40})
-    bg = dict(w=round(W), arenaX=round(arenaX), ingresso=0, d=D, dipinto=1,
+    # oggetti di scena dal foglio (fondali.json "oggetti": pezzo, x nell'immagine, strato medio o primo)
+    fx = {}; oggetti = []
+    fogli = [f for f in glob.glob(os.path.join(c, '*.png')) if 'Elementi' in os.path.basename(f)]
+    if fogli and cfg.get('oggetti'):
+        pezzi_f = foglio_oggetti(fogli[0])
+        nomi = [os.path.basename(f) for f in files]
+        for o in cfg['oggetti']:
+            idx, hg = OGGETTI[o['ogg']]
+            key = 'ch_' + o['ogg']
+            if key not in fx:
+                im = pezzi_f[idx]; s2 = hg * D / im.shape[0]
+                sm = np.array(Image.fromarray(im).resize((max(1, round(im.shape[1] * s2)), max(1, round(hg * D))), Image.Resampling.LANCZOS))
+                sm[..., 3] = np.where(sm[..., 3] > 127, 255, 0)
+                fx[key] = dict(data=b64png(Image.fromarray(sm)), w=round(sm.shape[1] / D, 1), h=round(sm.shape[0] / D, 1), d=D)
+            i = nomi.index(o['pezzo']); h = Image.open(files[i]).height; s_ = TERRA * D / (fr(files[i]) * h)
+            oggetti.append(dict(fx=key, x=round((scost[i] + o['x'] * s_) / D, 1), strato=o.get('strato', 'medio'), flip=bool(o.get('specchia'))))
+    bg = dict(w=round(W), arenaX=round(arenaX), ingresso=0, d=D, dipinto=1, oggetti=oggetti,
               lontano=lontano, navata=dict(parts=parti(nav), w=round(W)), primo=primo,
               luci=luci, fiamme=fiamme, vetrate=[], porta=dict(x=-999, y=0, w=0, h=0),
               rosone=ros, pilastri=[], giunti=giunti)
-    return bg, {}
+    return bg, fx

@@ -45,12 +45,16 @@ export const CHECKPOINT_CHIESA = 4;
 // dalle immagini: ondate e casse si ridistribuiscono in proporzione lungo la navata (arena esclusa).
 const SCALA_X = (CH_BG.arenaX) / (3100 - 384);
 if (Math.abs(SCALA_X - 1) > 0.01) for (const w of WAVES_CHIESA) w.x = Math.round(w.x * SCALA_X);
-/** Casse d'arma lungo la navata (stesso sistema della strada). */
+/** Casse gotiche lungo la navata (progetto-chiesa/oggetti/casse_gotiche.png). Oltre alle armi:
+ *  'vita' (cassa rossa con la croce: meta' della vita) e 'bombe' (cassa delle granate: +5 bombe). */
 export const PICKUPS_CHIESA: { x: number; arma: string }[] = [
   { x: 690, arma: 'mitragliatrice' },
+  { x: 960, arma: 'bombe' },
   { x: 1220, arma: 'fucile' },
+  { x: 1480, arma: 'vita' },
   { x: 1730, arma: 'lanciarazzi' },
   { x: 2250, arma: 'mitragliatrice' },
+  { x: 2560, arma: 'vita' },
 ];
 if (Math.abs(SCALA_X - 1) > 0.01) for (const p of PICKUPS_CHIESA) p.x = Math.round(p.x * SCALA_X);
 

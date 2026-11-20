@@ -1,4 +1,4 @@
-# BUCA SLUG - prototipo 1.4
+# BUCA SLUG - prototipo 1.5
 
 Run'n'gun stile Metal Slug. Strada di Ponte Arche (gelatai e ubriachi) -> Giova davanti al Bar Bucaneve -> Ettore in cantina.
 
@@ -26,6 +26,19 @@ Scaricate `bar-bucaneve.html` e apritelo con doppio clic (Chrome, Edge o Firefox
 - `src/entities.ts`: giocatore, nemici, Giova, Ettore.
 - `src/scenes/`: Boot, Title, Select, Game (fasi strada e cantina), Result.
 - `richieste/`: **richieste di modifica degli amici** (istruzioni + materiali). Le eseguo solo quando me lo dite; vedi `richieste/LEGGIMI.md`.
+
+## Novità 1.5
+- **Logo BUCA SLUG** nuovo nella schermata del titolo (`grafica/titolo/logo.png`).
+- **Griso sistemato**: il rosario era disegnato già "in volo" dentro la posa del foglio originale e restava fermo a mezz'aria; ora è separato e viene davvero scagliato, girando. La Bibbia parte dalla mano nel fotogramma del braccio teso e cade ad arco girando. Entrambi colpiscono, fanno uno sbuffo all'impatto e spariscono.
+- **Voci di Griso**: `voce Griso` in combattimento (al massimo una ogni 6 s), `morte Griso` una volta sola quando cade, senza che altre voci la interrompano.
+- **Musica della chiesa** 1,3 volte più veloce (stessa intonazione) e 1,5 volte più alta, sotto il limitatore (niente distorsione).
+- **Casse gotiche** in chiesa (`progetto-chiesa/oggetti/casse_gotiche.png`): mitragliatrice, fucile, lanciarazzi, più due nuove, **vita** (+50%) e **bombe** (+5); si aprono crepandosi e con un lampo di luce. Tolti gli oggetti decorativi (vasi, panche, macerie).
+- **Audio dei livelli**:
+  - **strada**: solo `Strada.mp3`, la barista all'inizio e davanti al bar, il gelataio quando entrano i gelatai;
+  - **Bucaneve**: la musica della strada continua, Giovanni dice "ciao" ogni 5-7 s e il suo sottofondo suona 4 volte (all'arrivo e a 70%, 40%, 15% della vita);
+  - **cantina**: la musica di Ettore parte subito, il gelataio entra con i rinforzi;
+  - **in generale**: tolte le voci finte ricavate da altre registrazioni. Musica, voci ed effetti ora hanno canali separati: le voci abbassano la musica senza fermarla. In pausa le voci si fermano e la musica scende. Cambiando livello si ferma tutto.
+- **Test nuovi**: `tests/griso.py` (6 lanci + voce di morte) e `tests/audio.py` (audio di tutti i livelli).
 
 ## Novità 1.4 — HOLY SLUG
 - **Fondali dipinti della chiesa** (9 tavole in `progetto-chiesa/fondali/`: ingresso, navata_01–07, altare), cuciti come la strada; luci tremolanti sulle candele dipinte e sul rosone indicate in `fondali.json`. Chiesa lunga 2652 px, ondate e casse ridistribuite in proporzione.
